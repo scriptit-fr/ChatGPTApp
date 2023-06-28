@@ -41,44 +41,34 @@ chat.addMessage(message);
 
 ## Adding Function Objects
 
-Function objects represent the functions that the model can call during the conversation. 
-
-### Creating FunctionParameter Instances
-
-A `FunctionParameter` instance represents a parameter of the function. First, create a `FunctionParameter` instance:
-
-```javascript
-let functionParameter = ChatGPTApp.newFunctionParameter();
-```
-
-You can set the type of the function, and add properties (arguments) to it using `setType` and `addProperty` methods, respectively. Properties are added by specifying the name, type, and description. By default, all added properties are required. To make a property optional, use the `setPropertyAsUnrequired` method:
-
-```javascript
-functionParameter.setType("integer")
-                .addProperty("number1", "integer", "First number to add.")
-                .addProperty("number2", "integer", "Second number to add.")
-                .setPropertyAsUnrequired("number2");
-```
-
-In this case, we have created a parameter object for a function that adds two numbers. The function requires at least one number (`number1`), and the second number (`number2`) is optional.
+Function objects represent the functions that the model can call during the conversation.
 
 ### Creating FunctionObject Instances
 
-Next, create a new `FunctionObject`:
+First, create a new `FunctionObject` instance:
 
 ```javascript
-let functionObject = ChatGPTApp.newFunction();
+let functionObject = new FunctionObject();
 ```
 
-Set the name, description, and parameters of the function. The parameters are specified using the `FunctionParameter` instance created earlier:
+Then, set the name, description, and parameters for this function. The parameters can now be added directly to the function object:
 
 ```javascript
 functionObject.setName("sum")
               .setDescription("Adds two numbers together.")
-              .setParameters(functionParameter);
+              .addParameter("number1", "integer", "First number to add.")
+              .addParameter("number2", "integer", "Second number to add.");
 ```
 
-Here, we have defined a function named "sum" that adds two numbers together.
+In this case, we are defining a function named "sum" that adds two numbers together. Both numbers are added as parameters and are required by default.
+
+If you want to make a parameter optional, use the `setPropertyAsUnrequired` method:
+
+```javascript
+functionObject.setPropertyAsUnrequired("number2");
+```
+
+This makes the second number (`number2`) optional for the "sum" function.
 
 ### Adding FunctionObject Instances to the Chat
 
@@ -88,9 +78,9 @@ Finally, add this function to the chat:
 chat.addFunction(functionObject);
 ```
 
-Now, the chat application is aware of the "sum" function and it can be called during the conversation.
+Now, the chat application is aware of the function and it can be called during the conversation.
 
-Keep in mind that the actual "sum" function must be implemented in your global scope, as the `ChatGPTApp` library will dynamically attempt to call this function when the conversation requires it.
+Keep in mind that the actual  function must be implemented in your global scope, as the `ChatGPTApp` library will dynamically attempt to call this function when the conversation requires it.
 
 ## Running the Conversation
 

@@ -44,78 +44,14 @@ const ChatGPTApp = (function () {
 
   /**
    * @class
-   * Class representing a function parameter.
-   */
-  class FunctionParameter {
-    constructor() {
-      let type = '';
-      let properties = {};
-      let required = [];
-
-      /**
-       * Set the type returned by the function.
-       * @param {string} newType - The type.
-       * @returns {FunctionParameter} - The current FunctionParameter instance.
-       */
-      this.setType = function (newType) {
-        type = newType;
-        return this;
-      };
-
-      /**
-       * Add a property (arg) of the function. 
-       * Warning : required by default
-       * check setPropertyAsUnrequired(propertyName)
-       * @param {string} name - The property name.
-       * @param {string} newType - The property type.
-       * @param {string} description - The property description.
-       * @returns {FunctionParameter} - The current FunctionParameter instance.
-       */
-      this.addProperty = function (name, newType, description) {
-        properties[name] = {
-          type: newType,
-          description: description
-        };
-        required.push(name);
-        return this;
-      };
-
-      /**
-       * Sets a property as unrequired
-       * @param {string} propertyName - The name of the unrequired property.
-       * @returns {FunctionParameter} - The current FunctionParameter instance.
-       */
-      this.setPropertyAsUnrequired = function (propertyName) {
-        var newRequiredArray = required.filter(function (element) {
-          return element !== propertyName;
-        })
-        required = newRequiredArray;
-        return this;
-      };
-
-      /**
-       * Returns a JSON representation of the message.
-       * @returns {object} - The JSON representation of the message.
-       */
-      this.toJSON = function () {
-        return {
-          type: type,
-          properties: properties,
-          required: required
-        };
-      };
-    }
-  }
-
-  /**
-   * @class
    * Class representing a function known by function calling model
    */
   class FunctionObject {
     constructor() {
       let name = '';
       let description = '';
-      let parameters = {};
+      let properties = {};
+      let required = [];
 
       /**
        * Sets the name for a function.
@@ -138,12 +74,33 @@ const ChatGPTApp = (function () {
       };
 
       /**
-       * Sets the parameters for a function.
-       * @param {FunctionParameter} newParameters - The parameters of the function.
-       * @returns {FunctionObject} - The current Function instance.
+       * Add a property (arg) of the function. 
+       * Warning : required by default
+       * check setPropertyAsUnrequired(propertyName)
+       * @param {string} name - The property name.
+       * @param {string} newType - The property type.
+       * @param {string} description - The property description.
+       * @returns {FunctionParameter} - The current FunctionParameter instance.
        */
-      this.setParameters = function (newParameters) {
-        parameters = newParameters;
+      this.addParameter = function (name, newType, description) {
+        properties[name] = {
+          type: newType,
+          description: description
+        };
+        required.push(name);
+        return this;
+      }
+
+      /**
+       * Sets a parameter as unrequired
+       * @param {string} parameterName - The name of the unrequired parameter.
+       * @returns {Function} - The current Function instance.
+       */
+      this.setPropertyAsUnrequired = function (parameterName) {
+        var newRequiredArray = required.filter(function (element) {
+          return element !== parameterName;
+        })
+        required = newRequiredArray;
         return this;
       };
 
@@ -155,19 +112,13 @@ const ChatGPTApp = (function () {
         return {
           name: name,
           description: description,
-          parameters: parameters
+          parameters: {
+            type: "object",
+            properties: properties,
+            required: required
+          }
         };
       };
-
-      // /**
-      //  * To give the function to call 
-      //  * @param {Object} newFunctionObject - The function to send.
-      //  * @returns {FunctionObject} - The current Function instance.
-      //  */
-      // this.assignFunction = function (newFunctionObject) {
-      //   functionObject = newFunctionObject;
-      //   return this;
-      // }
     }
   }
 
@@ -333,6 +284,7 @@ const ChatGPTApp = (function () {
             return responseMessage;
           }
         } else {
+          Logger.log(responseMessage.content)
           // Return the chat answer
           return responseMessage;
         }
@@ -377,14 +329,6 @@ const ChatGPTApp = (function () {
     newFunction: function () {
       return new FunctionObject();
     },
-
-    /**
-     * Create a new function parameter.
-     * @returns {FunctionParameter} - A new FunctionParameter instance.
-     */
-    newFunctionParameter: function () {
-      return new FunctionParameter();
-    }
   }
 }
 )();

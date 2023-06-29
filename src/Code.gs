@@ -371,7 +371,7 @@ const ChatGPTApp = (function () {
                 "role": "assistant",
                 "content": null,
                 "function_call": {"name": functionName, "arguments": functionArgs}}
-            })
+            )
             messages.push(
               {
                 "role": "function",

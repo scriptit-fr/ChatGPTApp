@@ -388,13 +388,8 @@ const ChatGPTApp = (function () {
   function callFunction(functionName, jsonArgs, argsOrder) {
     // Parse JSON arguments
     var argsObj = JSON.parse(jsonArgs);
-    var argsArray = [];
+    let argsArray = argsOrder.map(argName => argsObj[argName]); 
 
-    // Extract arguments in correct order
-    for (let i = 0; i < argsOrder.length; i++) {
-      let argName = argsOrder[i]; // get argument name from the argsOrder array
-      argsArray.push(argsObj[argName]); // get value from argsObj
-    }
     // Call the function dynamically
     if (globalThis[functionName] instanceof Function) {
       let functionResponse = globalThis[functionName].apply(null, argsArray);

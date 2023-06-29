@@ -52,6 +52,8 @@ const ChatGPTApp = (function () {
       let description = '';
       let properties = {};
       let required = [];
+      let argumentsInRightOrder = [];
+      let maximumNumberOfCalls = 1;
 
       /**
        * Sets the name for a function.
@@ -74,35 +76,52 @@ const ChatGPTApp = (function () {
       };
 
       /**
-       * Add a property (arg) of the function. 
-       * Warning : required by default
-       * check setPropertyAsUnrequired(propertyName)
-       * @param {string} name - The property name.
-       * @param {string} newType - The property type.
-       * @param {string} description - The property description.
-       * @returns {FunctionParameter} - The current FunctionParameter instance.
+       * Sets the maximum of time the model will call a function.
+       * Is here to avoid duplicated call.
+       * Default value is 1.
+       * @param {number} number - The number of time a function can be called.
+       * @returns {FunctionObject} - The current Function instance.
        */
-      this.addParameter = function (name, newType, description) {
-        properties[name] = {
-          type: newType,
-          description: description
-        };
-        required.push(name);
+      this.setMaximumNumberOfCall = function (number) {
+        maximumNumberOfCalls = number;
         return this;
       }
 
       /**
-       * Sets a parameter as unrequired
-       * @param {string} parameterName - The name of the unrequired parameter.
+       * Add a property (arg) of the function. 
+       * Warning : required by default
+       * To set a parameter as unrequired, add false for the fourth argument.
+       * Otherwise you can only use three arguments.
+       * @param {string} name - The property name.
+       * @param {string} newType - The property type.
+       * @param {string} description - The property description.
        * @returns {Function} - The current Function instance.
        */
-      this.setPropertyAsUnrequired = function (parameterName) {
-        var newRequiredArray = required.filter(function (element) {
-          return element !== parameterName;
-        })
-        required = newRequiredArray;
+      this.addParameter = function (name, newType, description, isRequired) {
+        isRequired = (isRequired === undefined) ? true : isRequired;
+        properties[name] = {
+          type: newType,
+          description: description
+        };
+        argumentsInRightOrder.push(name);
+        if (isRequired) {
+          required.push(name);
+        }
         return this;
-      };
+      }
+
+      // /**
+      //  * Sets a parameter as unrequired
+      //  * @param {string} parameterName - The name of the unrequired parameter.
+      //  * @returns {Function} - The current Function instance.
+      //  */
+      // this.setPropertyAsUnrequired = function (parameterName) {
+      //   var newRequiredArray = required.filter(function (element) {
+      //     return element !== parameterName;
+      //   })
+      //   required = newRequiredArray;
+      //   return this;
+      // };
 
       /**
        * Returns a JSON representation of the message.
@@ -116,7 +135,9 @@ const ChatGPTApp = (function () {
             type: "object",
             properties: properties,
             required: required
-          }
+          },
+          argumentsInRightOrder: argumentsInRightOrder,
+          maximumNumberOfCalls: maximumNumberOfCalls
         };
       };
     }
@@ -239,16 +260,58 @@ const ChatGPTApp = (function () {
           }
         }
 
-        let options = {
-          'method': 'post',
-          'headers': {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + apiKey
-          },
-          'payload': JSON.stringify(payload),
-        };
-        let response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
-        let responseMessage = JSON.parse(response.getContentText()).choices[0].message;
+        // let options = {
+        //   'method': 'post',
+        //   'headers': {
+        //     'Content-Type': 'application/json',
+        //     'Authorization': 'Bearer ' + apiKey
+        //   },
+        //   'payload': JSON.stringify(payload),
+        // };
+        // let response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
+        // let responseMessage = JSON.parse(response.getContentText()).choices[0].message;
+
+        let maxAttempts = 5;
+        let attempt = 0;
+        let success = false;
+
+        let responseMessage;
+
+        while (attempt < maxAttempts && !success) {
+          let options = {
+            'method': 'post',
+            'headers': {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + apiKey
+            },
+            'payload': JSON.stringify(payload),
+            'muteHttpExceptions': true
+          };
+
+          let response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
+          let responseCode = response.getResponseCode();
+          responseMessage = JSON.parse(response.getContentText()).choices[0].message;
+
+
+          if (responseCode === 200) {
+            // The request was successful, exit the loop.
+            success = true;
+          } else if (responseCode === 503) {
+            // The server is temporarily unavailable, wait before retrying.
+            let delay = Math.pow(2, attempt) * 1000; // Delay in milliseconds, starting at 1 second.
+            Utilities.sleep(delay);
+            attempt++;
+          } else {
+            // The request failed for another reason, log the error and exit the loop.
+            console.error('Request failed with response code', responseCode);
+            break;
+          }
+        }
+
+        if (!success) {
+          console.error('Failed to fetch the URL after', maxAttempts, 'attempts');
+        }
+
 
         Logger.log({
           message: 'Got response from open AI API',
@@ -262,18 +325,62 @@ const ChatGPTApp = (function () {
             let functionName = responseMessage.function_call.name;
             let functionArgs = responseMessage.function_call.arguments;
 
-            callFunction(functionName, functionArgs);
+            let argsOrder = [];
+            // let numberOfTimeTheFunctionHasBeenCalled = 0;
+            // let numberOfTimeTheFunctionCanBeCalled = 1;
+
+            let functionCalled = [];
+
+            for (let f in functions) {
+              let currentFunction = functions[f].toJSON();
+              if (currentFunction.name == functionName) {
+                // get the args in the right order
+                argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
+
+                // // count the functions calls
+                // numberOfTimeTheFunctionCanBeCalled = currentFunction.maximumNumberOfCalls;
+                // if (!functionCalled[functionName]) {
+                //   functionCalled[functionName] = 0;
+                // }
+                // functionCalled[functionName]++;
+                // numberOfTimeTheFunctionHasBeenCalled =  functionCalled[functionName];
+
+                break;
+              }
+            }
+
+            let functionResponse = callFunction(functionName, functionArgs, argsOrder);
+
+
+            // if (numberOfTimeTheFunctionHasBeenCalled == numberOfTimeTheFunctionCanBeCalled) {
+            //   Logger.log("reached maximum number of calls for the function.")
+            //   var newFunctionsArray = functions.filter(function (element) {
+            //     return element.name == functionName;
+            //   })
+            //   functions = newFunctionsArray;
+            // }
 
             Logger.log({
               message: "Function calling called " + functionName,
-              arguments: functionArgs
+              arguments: functionArgs,
+              response: functionResponse
             });
 
             // Inform the chat that the function has been called
-            const updateMessage = ChatGPTApp.newMessage().setRole("system").setContent("Function " + functionName + " has been executed with arguments " + functionArgs);
-            this.addMessage(updateMessage);
+            messages.push(
+              {
+                "role": "function",
+                "name": functionName,
+                "content": functionResponse,
+              }
+            )
 
-            this.runConversation()
+            // if (functions.length != 0) {
+            this.runConversation();
+            // } else {
+            //   return;
+            // }
+
 
           } else {
             // no function has been called 
@@ -292,18 +399,32 @@ const ChatGPTApp = (function () {
     }
   }
 
-  function callFunction(functionName, jsonArgs) {
+  function callFunction(functionName, jsonArgs, argsOrder) {
     // Parse JSON arguments
     var argsObj = JSON.parse(jsonArgs);
-    var argsArray = Object.values(argsObj); // Get the values of the object properties
+    var argsArray = [];
 
+    // Extract arguments in correct order
+    for (let i = 0; i < argsOrder.length; i++) {
+      let argName = argsOrder[i]; // get argument name from the argsOrder array
+      argsArray.push(argsObj[argName]); // get value from argsObj
+    }
     // Call the function dynamically
     if (globalThis[functionName] instanceof Function) {
-      globalThis[functionName].apply(null, argsArray);
+      let functionResponse = globalThis[functionName].apply(null, argsArray);
+      if (functionResponse) {
+        // Logger.log(functionResponse);
+        return functionResponse;
+      } else {
+        // Logger.log("no response");
+        return "the function has been sucessfully executed but has nothing to return";
+      }
     } else {
       Logger.log("Function not found or not a function: " + functionName);
+      return "the function was not found and was not executed."
     }
   }
+
 
   return {
     /**

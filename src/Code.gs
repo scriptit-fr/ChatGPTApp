@@ -17,8 +17,8 @@ const ChatGPTApp = (function () {
        */
       this.setSystemInstruction = function (bool) {
         if (bool) {
-            role = "system";
-        }       
+          role = "system";
+        }
         return this;
       };
 
@@ -98,7 +98,7 @@ const ChatGPTApp = (function () {
        * @param {string} name - The property name.
        * @param {string} newType - The property type.
        * @param {string} description - The property description.
-       * @returns {Function} - The current Function instance.
+       * @returns {FunctionObject} - The current Function instance.
        */
       this.addParameter = function (name, newType, description, isRequired) {
         isRequired = (isRequired === undefined) ? true : isRequired;
@@ -233,24 +233,18 @@ const ChatGPTApp = (function () {
        */
       this.runConversation = function (openAIKey) {
         let functionCalling = false;
-        let payload = {};
+        let payload = {
+          'messages': messages,
+          'model': model,
+          'max_tokens': maxToken,
+          'temperature': temperature,
+          'user': Session.getTemporaryActiveUserKey()
+        };
         if (model == "gpt-3.5-turbo-0613" || model == "gpt-4-0613") {
-          payload = {
-            'model': model,
-            'messages': messages,
-            'functions': functions,
-            'function_call': 'auto',
-          }
+          payload.functions = functions;
+          payload.function_call = 'auto';
           functionCalling = true;
           Logger.log("Currently using function calling model");
-        } else {
-          payload = {
-            'messages': messages,
-            'model': model,
-            'max_tokens': maxToken,
-            'temperature': temperature,
-            'user': Session.getTemporaryActiveUserKey()
-          }
         }
 
         let maxAttempts = 5;
@@ -333,6 +327,10 @@ const ChatGPTApp = (function () {
 
             let functionResponse = callFunction(functionName, functionArgs, argsOrder);
 
+            if (typeof functionResponse != "string") {
+              functionResponse = String(functionResponse);
+            }
+
 
             // if (numberOfTimeTheFunctionHasBeenCalled == numberOfTimeTheFunctionCanBeCalled) {
             //   Logger.log("reached maximum number of calls for the function.")
@@ -350,9 +348,10 @@ const ChatGPTApp = (function () {
 
             // Inform the chat that the function has been called
             messages.push({
-                "role": "assistant",
-                "content": null,
-                "function_call": {"name": functionName, "arguments": functionArgs}}
+              "role": "assistant",
+              "content": null,
+              "function_call": { "name": functionName, "arguments": functionArgs }
+            }
             )
             messages.push(
               {

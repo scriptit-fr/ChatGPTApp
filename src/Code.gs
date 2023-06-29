@@ -367,6 +367,11 @@ const ChatGPTApp = (function () {
             });
 
             // Inform the chat that the function has been called
+            message.push({
+                "role": "assistant",
+                "content": null,
+                "function_call": {"name": functionName, "arguments": functionArgs}}
+            })
             messages.push(
               {
                 "role": "function",

@@ -160,7 +160,7 @@ const ChatGPTApp = (function () {
 
       /**
        * Add a message to the chat.
-       * @param {JSON} message - The message to be added.Use JSON.stringify()
+       * @param {Message} message - The message to be added.Use JSON.stringify()
        * @returns {Chat} - The current Chat instance.
        */
       this.addMessage = function (message) {

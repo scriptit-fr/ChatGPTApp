@@ -154,7 +154,7 @@ const ChatGPTApp = (function () {
     constructor() {
       let messages = [];
       let functions = [];
-      let model = "gpt-3.5-turbo-0613"; // default 
+      let model = "gpt-3.5-turbo"; // default 
       let temperature = 0;
       let maxToken = 300;
 
@@ -178,35 +178,35 @@ const ChatGPTApp = (function () {
         return this;
       };
 
-      /**
-       * Set the open AI model (default : gpt-3.5-turbo)
-       * @param {string} modelToUse - The model to use.
-       * @returns {Chat} - The current Chat instance.
-       */
-      this.setModel = function (modelToUse) {
-        model = modelToUse;
-        return this;
-      }
+      // /**
+      //  * Set the open AI model (default : gpt-3.5-turbo)
+      //  * @param {string} modelToUse - The model to use.
+      //  * @returns {Chat} - The current Chat instance.
+      //  */
+      // this.setModel = function (modelToUse) {
+      //   model = modelToUse;
+      //   return this;
+      // }
 
-      /**
-       * Set the temperature for the chat
-       * @param {number} newTemperature - The temperature of the chat.
-       * @returns {Chat} - The current Chat instance.
-       */
-      this.setTemperature = function (newTemperature) {
-        temperature = newTemperature;
-        return this;
-      }
+      // /**
+      //  * Set the temperature for the chat
+      //  * @param {number} newTemperature - The temperature of the chat.
+      //  * @returns {Chat} - The current Chat instance.
+      //  */
+      // this.setTemperature = function (newTemperature) {
+      //   temperature = newTemperature;
+      //   return this;
+      // }
 
-      /**
-       * Set the maximum of token for one request.
-       * @param {string} maximumNumberOfToken - The maximum number of token.
-       * @returns {Chat} - The current Chat instance.
-       */
-      this.setMaxToken = function (maximumNumberOfToken) {
-        maxToken = maximumNumberOfToken;
-        return this;
-      }
+      // /**
+      //  * Set the maximum of token for one request.
+      //  * @param {string} maximumNumberOfToken - The maximum number of token.
+      //  * @returns {Chat} - The current Chat instance.
+      //  */
+      // this.setMaxToken = function (maximumNumberOfToken) {
+      //   maxToken = maximumNumberOfToken;
+      //   return this;
+      // }
 
       /**
        * Get the messages of the chat.
@@ -229,23 +229,47 @@ const ChatGPTApp = (function () {
        * Will return the chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
        * @param {string} openAIKey - Your Open AI API key;
+       * @param {object} av=dvanced parameters - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {Object} - the name (string) and arguments (JSON) of the function called by the model {functionName: name, functionArgs}
        */
-      this.runConversation = function (openAIKey) {
-        let functionCalling = false;
+      this.runConversation = function (openAIKey, advancedParametersObject) {
+        if (advancedParametersObject) {
+          if (advancedParametersObject.hasOwnProperty("model")) {
+            model = advancedParametersObject.model;
+          }
+          if (advancedParametersObject.hasOwnProperty("temperature")) {
+            temperature = advancedParametersObject.temperature;
+          }
+        }
+
+
         let payload = {
           'messages': messages,
-          'model': model,
+          // 'model': model,
           'max_tokens': maxToken,
           'temperature': temperature,
           'user': Session.getTemporaryActiveUserKey()
         };
-        if (model == "gpt-3.5-turbo-0613" || model == "gpt-4-0613") {
+
+        let functionCalling = false;
+        if (advancedParametersObject) {
+          if (advancedParametersObject.hasOwnProperty("function_calling")) { // the user has set a specific function to call
+            Logger.log("coucou");
+            payload.functions = functions;
+            let function_calling = { name: advancedParametersObject.function_calling };
+            payload.function_call = function_calling;
+            functionCalling = true;
+          }
+        } else if (functions.length >> 0) { // the user has added functions, we enable function calling
           payload.functions = functions;
           payload.function_call = 'auto';
           functionCalling = true;
-          Logger.log("Currently using function calling model");
         }
+
+        if (functionCalling) {
+          model.concat("-0613");
+        }
+        payload.model = model;
 
         let maxAttempts = 5;
         let attempt = 0;
@@ -388,7 +412,7 @@ const ChatGPTApp = (function () {
   function callFunction(functionName, jsonArgs, argsOrder) {
     // Parse JSON arguments
     var argsObj = JSON.parse(jsonArgs);
-    let argsArray = argsOrder.map(argName => argsObj[argName]); 
+    let argsArray = argsOrder.map(argName => argsObj[argName]);
 
     // Call the function dynamically
     if (globalThis[functionName] instanceof Function) {

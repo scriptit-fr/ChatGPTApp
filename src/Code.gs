@@ -57,6 +57,7 @@ const ChatGPTApp = (function () {
       let required = [];
       let argumentsInRightOrder = [];
       let maximumNumberOfCalls = 1;
+      let endingFunction = false;
 
       /**
        * Sets the name for a function.
@@ -79,15 +80,17 @@ const ChatGPTApp = (function () {
       };
 
       /**
-       * Sets the maximum of time the model will call a function.
-       * Is here to avoid duplicated call.
-       * Default value is 1.
-       * @param {number} number - The number of time a function can be called.
+       * OPTIONAL
+       * If enabled, the conversation will automatically end when this function is called.
+       * Default : false
+       * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.setMaximumNumberOfCall = function (number) {
-        maximumNumberOfCalls = number;
-        return this;
+      this.endWithResult = function (bool) {
+        if (bool) {
+          endingFunction = true;
+        }
+        return this; 
       }
 
       /**
@@ -112,19 +115,6 @@ const ChatGPTApp = (function () {
         }
         return this;
       }
-
-      // /**
-      //  * Sets a parameter as unrequired
-      //  * @param {string} parameterName - The name of the unrequired parameter.
-      //  * @returns {Function} - The current Function instance.
-      //  */
-      // this.setPropertyAsUnrequired = function (parameterName) {
-      //   var newRequiredArray = required.filter(function (element) {
-      //     return element !== parameterName;
-      //   })
-      //   required = newRequiredArray;
-      //   return this;
-      // };
 
       /**
        * Returns a JSON representation of the message.
@@ -151,12 +141,13 @@ const ChatGPTApp = (function () {
    * Class representing a chat.
    */
   class Chat {
-    constructor() {
+    constructor(apiKey) {
       let messages = [];
       let functions = [];
       let model = "gpt-3.5-turbo"; // default 
       let temperature = 0;
       let maxToken = 300;
+      let openAIKey = apiKey;
 
       /**
        * Add a message to the chat.
@@ -178,39 +169,9 @@ const ChatGPTApp = (function () {
         return this;
       };
 
-      // /**
-      //  * Set the open AI model (default : gpt-3.5-turbo)
-      //  * @param {string} modelToUse - The model to use.
-      //  * @returns {Chat} - The current Chat instance.
-      //  */
-      // this.setModel = function (modelToUse) {
-      //   model = modelToUse;
-      //   return this;
-      // }
-
-      // /**
-      //  * Set the temperature for the chat
-      //  * @param {number} newTemperature - The temperature of the chat.
-      //  * @returns {Chat} - The current Chat instance.
-      //  */
-      // this.setTemperature = function (newTemperature) {
-      //   temperature = newTemperature;
-      //   return this;
-      // }
-
-      // /**
-      //  * Set the maximum of token for one request.
-      //  * @param {string} maximumNumberOfToken - The maximum number of token.
-      //  * @returns {Chat} - The current Chat instance.
-      //  */
-      // this.setMaxToken = function (maximumNumberOfToken) {
-      //   maxToken = maximumNumberOfToken;
-      //   return this;
-      // }
-
       /**
        * Get the messages of the chat.
-       * @returns {Message[]} - The messages of the chat.
+       * returns {string[]} - The messages of the chat.
        */
       this.getMessages = function () {
         return JSON.stringify(messages);
@@ -218,7 +179,7 @@ const ChatGPTApp = (function () {
 
       /**
        * Get the functions of the chat.
-       * @returns {FunctionObject[]} - The functions of the chat.
+       * returns {FunctionObject[]} - The functions of the chat.
        */
       this.getFunctions = function () {
         return JSON.stringify(functions);
@@ -228,11 +189,10 @@ const ChatGPTApp = (function () {
        * Start the chat conversation.
        * Will return the chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {string} openAIKey - Your Open AI API key;
-       * @param {object} av=dvanced parameters - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {object} advancedParametersObject - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {Object} - the name (string) and arguments (JSON) of the function called by the model {functionName: name, functionArgs}
        */
-      this.runConversation = function (openAIKey, advancedParametersObject) {
+      this.run = function (advancedParametersObject) {
         if (advancedParametersObject) {
           if (advancedParametersObject.hasOwnProperty("model")) {
             model = advancedParametersObject.model;
@@ -326,43 +286,22 @@ const ChatGPTApp = (function () {
             let functionArgs = responseMessage.function_call.arguments;
 
             let argsOrder = [];
-            // let numberOfTimeTheFunctionHasBeenCalled = 0;
-            // let numberOfTimeTheFunctionCanBeCalled = 1;
-
-            let functionCalled = [];
+            let endWithResult = false;
 
             for (let f in functions) {
               let currentFunction = functions[f].toJSON();
               if (currentFunction.name == functionName) {
                 // get the args in the right order
                 argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
-
-                // // count the functions calls
-                // numberOfTimeTheFunctionCanBeCalled = currentFunction.maximumNumberOfCalls;
-                // if (!functionCalled[functionName]) {
-                //   functionCalled[functionName] = 0;
-                // }
-                // functionCalled[functionName]++;
-                // numberOfTimeTheFunctionHasBeenCalled =  functionCalled[functionName];
-
+                endWithResult = currentFunction.endWithResult;
                 break;
               }
             }
 
             let functionResponse = callFunction(functionName, functionArgs, argsOrder);
-
             if (typeof functionResponse != "string") {
               functionResponse = String(functionResponse);
             }
-
-
-            // if (numberOfTimeTheFunctionHasBeenCalled == numberOfTimeTheFunctionCanBeCalled) {
-            //   Logger.log("reached maximum number of calls for the function.")
-            //   var newFunctionsArray = functions.filter(function (element) {
-            //     return element.name == functionName;
-            //   })
-            //   functions = newFunctionsArray;
-            // }
 
             Logger.log({
               message: "Function calling called " + functionName,
@@ -370,27 +309,32 @@ const ChatGPTApp = (function () {
               response: functionResponse
             });
 
-            // Inform the chat that the function has been called
-            messages.push({
-              "role": "assistant",
-              "content": null,
-              "function_call": { "name": functionName, "arguments": functionArgs }
-            }
-            )
-            messages.push(
-              {
-                "role": "function",
-                "name": functionName,
-                "content": functionResponse,
+            if (!endWithResult) {
+              // Inform the chat that the function has been called
+              messages.push({
+                "role": "assistant",
+                "content": null,
+                "function_call": { "name": functionName, "arguments": functionArgs }
               }
-            )
-
-            // if (functions.length != 0) {
-            this.runConversation(openAIKey);
-            // } else {
-            //   return;
-            // }
-
+              )
+              messages.push(
+                {
+                  "role": "function",
+                  "name": functionName,
+                  "content": functionResponse,
+                }
+              )
+            } else {
+              Logger.log({
+                message: "Conversation stopped because end function has been called",
+                functionName: functionName,
+                functionArgs: functionArgs,
+                functionResponse: functionResponse
+              })
+              return functionResponse;
+            }
+            
+            this.run();
 
           } else {
             // no function has been called 
@@ -434,10 +378,11 @@ const ChatGPTApp = (function () {
   return {
     /**
      * Create a new chat.
+     * @params {string} apiKey - Your OPEN AI API key.
      * @returns {Chat} - A new Chat instance.
      */
-    newChat: function () {
-      return new Chat();
+    newChat: function (apiKey) {
+      return new Chat(apiKey);
     },
 
     /**

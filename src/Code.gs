@@ -2,51 +2,6 @@ const ChatGPTApp = (function () {
 
   let OpenAIKey = "";
 
-  // /**
-  //  * @class
-  //  * Class representing a chat message.
-  //  */
-  // class Message {
-  //   constructor(messageContent) {
-  //     let role = "user";
-  //     let content = messageContent;
-
-  //     /**
-  //      * Set the role of the message.
-  //      * By default, the role is "user", you can set it as "system" by calling this function with param true
-  //      * @param {boolean} bool - The role is "system"
-  //      * @returns {Message} - The current Message instance.
-  //      */
-  //     this.setSystemInstruction = function (bool) {
-  //       if (bool) {
-  //         role = "system";
-  //       }
-  //       return this;
-  //     };
-
-  //     /**
-  //      * Set the content of the message.
-  //      * @param {string} newContent - The content to be set.
-  //      * @returns {Message} - The current Message instance.
-  //      */
-  //     this.setContent = function (newContent) {
-  //       content = newContent;
-  //       return this;
-  //     };
-
-  //     /**
-  //      * Returns a JSON representation of the message.
-  //      * @returns {object} - The JSON representation of the message.
-  //      */
-  //     this.toJSON = function () {
-  //       return {
-  //         role: role,
-  //         content: content
-  //       };
-  //     };
-  //   }
-  // }
-
   /**
    * @class
    * Class representing a function known by function calling model
@@ -149,12 +104,11 @@ const ChatGPTApp = (function () {
       let model = "gpt-3.5-turbo"; // default 
       let temperature = 0;
       let maxToken = 300;
-      // let openAIKey = apiKey;
 
       /**
        * Add a message to the chat.
        * @param {string} messageContent - The message to be added.
-       * @param {boolean} system - OPTIONAL - True if message from system, False for user. 
+       * @param {boolean} [system] - OPTIONAL - True if message from system, False for user. 
        * @returns {Chat} - The current Chat instance.
        */
       this.addMessage = function (messageContent, system) {
@@ -352,7 +306,7 @@ const ChatGPTApp = (function () {
             return responseMessage;
           }
         } else {
-          Logger.log(responseMessage.content)
+          // Logger.log(responseMessage.content)
           // Return the chat answer
           return responseMessage;
         }
@@ -391,14 +345,6 @@ const ChatGPTApp = (function () {
     newChat: function () {
       return new Chat();
     },
-
-    // /**
-    //  * Create a new message.
-    //  * @returns {Message} - A new Message instance.
-    //  */
-    // newMessage: function (messageContent) {
-    //   return new Message(messageContent);
-    // },
 
     /**
      * Create a new function.

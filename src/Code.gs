@@ -150,7 +150,7 @@ const ChatGPTApp = (function () {
        * Start the chat conversation.
        * Will return the chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {object} advancedParametersObject - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {object} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {Object} - the name (string) and arguments (JSON) of the function called by the model {functionName: name, functionArgs}
        */
       this.run = function (advancedParametersObject) {
@@ -163,10 +163,9 @@ const ChatGPTApp = (function () {
           }
         }
 
-
         let payload = {
           'messages': messages,
-          // 'model': model,
+          'model': model,
           'max_tokens': maxToken,
           'temperature': temperature,
           'user': Session.getTemporaryActiveUserKey()
@@ -186,11 +185,6 @@ const ChatGPTApp = (function () {
           payload.function_call = 'auto';
           functionCalling = true;
         }
-
-        if (functionCalling) {
-          model.concat("-0613");
-        }
-        payload.model = model;
 
         let maxAttempts = 5;
         let attempt = 0;
@@ -254,7 +248,7 @@ const ChatGPTApp = (function () {
               if (currentFunction.name == functionName) {
                 // get the args in the right order
                 argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
-                endWithResult = currentFunction.endWithResult;
+                endWithResult = currentFunction.endingFunction;
                 break;
               }
             }

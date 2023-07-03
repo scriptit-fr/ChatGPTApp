@@ -1,99 +1,129 @@
-# ChatGPTApp Library Documentation
+# ChatGPTApp Documentation
 
-The `ChatGPTApp` library allows for the creation of chat applications with OpenAI's GPT models, by simplifying the creation of chat messages, function objects, and function parameters. This document outlines the structure of a typical conversation using this library.
+ChatGPTApp is a library that allows for easier usage of the OpenAI API with Google Apps Script. It provides a simple interface for creating and managing chat sessions with the OpenAI API and integrating it into your Google Apps Script projects.
 
-## Initial Setup
+## ChatGPTApp API
 
-Start by defining a new chat instance:
+The following classes and methods are available with the ChatGPTApp library:
 
-```javascript
-let chat = ChatGPTApp.newChat();
-```
+### ChatGPTApp.newChat()
 
-This instance has various methods you can use to configure the chat, such as `setModel`, `setApiKey`, `setTemperature`, and `setMaxToken`.
+This function creates and returns a new instance of the `Chat` class. This class represents a conversation.
 
 ```javascript
-chat.setModel("gpt-3.5-turbo")
-    .setApiKey("YOUR_OPENAI_API_KEY")
-    .setTemperature(0.5)
-    .setMaxToken(300);
+let myChat = ChatGPTApp.newChat();
 ```
 
-## Adding Messages
+### ChatGPTApp.newMessage(messageContent)
 
-Messages in a chat can be added with the `addMessage` method. To do this, first create a new `Message` instance:
+This function creates and returns a new instance of the `Message` class. It requires a string representing the message content as a parameter.
+By default, the message is assigned the role "user" (most common use case). You will see bellow how you can modify it. 
 
 ```javascript
-let message = ChatGPTApp.newMessage();
+let myMessage = ChatGPTApp.newMessage("Hello, how are you?");
 ```
 
-You can set the role and content of the message using the `setRole` and `setContent` methods respectively:
+### ChatGPTApp.newFunction()
+
+This function creates and returns a new instance of the `FunctionObject` class. 
 
 ```javascript
-message.setRole("system").setContent("Hello! How can I assist you today?");
+let myFunction = ChatGPTApp.newFunction();
 ```
 
-Then, add this message to the chat:
+## Classes
+
+### Message
+
+#### Message.setSystemInstruction(bool)
+
+Sets the role of the message as 'system' if `bool` is `true`. If `false`, the role remains 'user'.
+The use of this function is of course optionnal.
 
 ```javascript
-chat.addMessage(message);
+myMessage.setSystemInstruction(true);
 ```
 
-## Adding Function Objects
+#### Message.setContent(newContent)
 
-Function objects represent the functions that the model can call during the conversation.
-
-### Creating FunctionObject Instances
-
-First, create a new `FunctionObject` instance:
+Modifies the content of the message.
 
 ```javascript
-let functionObject = new FunctionObject();
+myMessage.setContent("What's the weather today?");
 ```
 
-Then, set the name, description, and parameters for this function. The parameters can now be added directly to the function object:
+### FunctionObject
+
+#### FunctionObject.setName(newName)
+
+Sets the name of the function.
 
 ```javascript
-functionObject.setName("sum")
-              .setDescription("Adds two numbers together.")
-              .addParameter("number1", "integer", "First number to add.")
-              .addParameter("number2", "integer", "Second number to add.");
+myFunction.setName("getWeather");
 ```
 
-In this case, we are defining a function named "sum" that adds two numbers together. Both numbers are added as parameters and are required by default.
+#### FunctionObject.setDescription(newDescription)
 
-If you want to make a parameter optional, use the `setPropertyAsUnrequired` method:
+Sets the description of the function.
 
 ```javascript
-functionObject.setPropertyAsUnrequired("number2");
+myFunction.setDescription("Gets the current weather.");
 ```
 
-This makes the second number (`number2`) optional for the "sum" function.
+#### FunctionObject.addParameter(name, newType, description, isRequired)
 
-### Adding FunctionObject Instances to the Chat
-
-Finally, add this function to the chat:
+Adds a property or argument to the function. The fourth parameter, `isRequired`, is optional and defaults to `true` if not specified.
 
 ```javascript
-chat.addFunction(functionObject);
+myFunction.addParameter("location", "string", "The location to get the weather for", true);
 ```
 
-Now, the chat application is aware of the function and it can be called during the conversation.
+#### FunctionObject.toJSON()
 
-Keep in mind that the actual  function must be implemented in your global scope, as the `ChatGPTApp` library will dynamically attempt to call this function when the conversation requires it.
-
-## Running the Conversation
-
-Once you've added all your messages and functions, you can start the conversation with the `runConversation` method:
+Returns a JSON representation of the function.
 
 ```javascript
-let response = chat.runConversation();
+let functionJSON = myFunction.toJSON();
 ```
 
-This method will run the conversation, call any functions if necessary, and return the final response from the chat.
+### Chat
 
-Please note that the `runConversation` method takes into account whether a function calling model is used or not. In the case a function is called by the model, it will execute the function and continue the conversation until the chat decides that nothing is left to do. If no function is called, it simply returns the chat's response.
+#### Chat.addMessage(message)
 
-In case of function calling models, ensure that you have the functions defined in your global scope as the `callFunction` will try to call it dynamically based on the function name.
+Adds a message to the chat. The parameter `message` should be an instance of the `Message` class.
 
-Please note that you need to replace `"YOUR_OPENAI_API_KEY"` with your actual OpenAI API key. Also, be sure to adjust the temperature and max tokens according to your needs. The model parameter should be one of the models supported by OpenAI.
+```javascript
+myChat.addMessage(myMessage);
+```
+
+#### Chat.addFunction(functionObject)
+
+Adds a function to the chat. The parameter `functionObject` should be an instance of the `FunctionObject` class.
+
+```javascript
+myChat.addFunction(myFunction);
+```
+
+#### Chat.getMessages()
+
+Returns the messages of the chat in a JSON string format.
+
+```javascript
+let messages = myChat.getMessages();
+```
+
+#### Chat.getFunctions()
+
+Returns the functions of the chat in a JSON string format.
+
+```javascript
+let functions = myChat.getFunctions();
+```
+
+#### Chat.runConversation(openAIKey, advancedParametersObject)
+
+Starts the chat conversation and returns the model's response. The `advancedParametersObject` parameter is optional and can be used to specify advanced parameters such as `model`, `temperature`, and `function_calling`.
+
+```javascript
+let response = myChat.runConversation('your_openai_key', { model: "gpt-3.5-turbo", temperature: 0.5 });
+```

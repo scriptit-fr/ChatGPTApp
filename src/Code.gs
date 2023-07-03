@@ -264,7 +264,7 @@ const ChatGPTApp = (function () {
               response: functionResponse
             });
 
-            if (!endWithResult) {
+            if (endWithResult) {
               // Inform the chat that the function has been called
               messages.push({
                 "role": "assistant",

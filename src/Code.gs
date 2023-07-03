@@ -1,49 +1,51 @@
 const ChatGPTApp = (function () {
 
-  /**
-   * @class
-   * Class representing a chat message.
-   */
-  class Message {
-    constructor(messageContent) {
-      let role = "user";
-      let content = messageContent;
+  let OpenAIKey = "";
 
-      /**
-       * Set the role of the message.
-       * By default, the role is "user", you can set it as "system" by calling this function with param true
-       * @param {boolean} bool - The role is "system"
-       * @returns {Message} - The current Message instance.
-       */
-      this.setSystemInstruction = function (bool) {
-        if (bool) {
-          role = "system";
-        }
-        return this;
-      };
+  // /**
+  //  * @class
+  //  * Class representing a chat message.
+  //  */
+  // class Message {
+  //   constructor(messageContent) {
+  //     let role = "user";
+  //     let content = messageContent;
 
-      /**
-       * Set the content of the message.
-       * @param {string} newContent - The content to be set.
-       * @returns {Message} - The current Message instance.
-       */
-      this.setContent = function (newContent) {
-        content = newContent;
-        return this;
-      };
+  //     /**
+  //      * Set the role of the message.
+  //      * By default, the role is "user", you can set it as "system" by calling this function with param true
+  //      * @param {boolean} bool - The role is "system"
+  //      * @returns {Message} - The current Message instance.
+  //      */
+  //     this.setSystemInstruction = function (bool) {
+  //       if (bool) {
+  //         role = "system";
+  //       }
+  //       return this;
+  //     };
 
-      /**
-       * Returns a JSON representation of the message.
-       * @returns {object} - The JSON representation of the message.
-       */
-      this.toJSON = function () {
-        return {
-          role: role,
-          content: content
-        };
-      };
-    }
-  }
+  //     /**
+  //      * Set the content of the message.
+  //      * @param {string} newContent - The content to be set.
+  //      * @returns {Message} - The current Message instance.
+  //      */
+  //     this.setContent = function (newContent) {
+  //       content = newContent;
+  //       return this;
+  //     };
+
+  //     /**
+  //      * Returns a JSON representation of the message.
+  //      * @returns {object} - The JSON representation of the message.
+  //      */
+  //     this.toJSON = function () {
+  //       return {
+  //         role: role,
+  //         content: content
+  //       };
+  //     };
+  //   }
+  // }
 
   /**
    * @class
@@ -141,21 +143,26 @@ const ChatGPTApp = (function () {
    * Class representing a chat.
    */
   class Chat {
-    constructor(apiKey) {
+    constructor() {
       let messages = [];
       let functions = [];
       let model = "gpt-3.5-turbo"; // default 
       let temperature = 0;
       let maxToken = 300;
-      let openAIKey = apiKey;
+      // let openAIKey = apiKey;
 
       /**
        * Add a message to the chat.
-       * @param {Message} message - The message to be added.Use JSON.stringify()
+       * @param {string} messageContent - The message to be added.
+       * @param {boolean} system - OPTIONAL - True if message from system, False for user. 
        * @returns {Chat} - The current Chat instance.
        */
-      this.addMessage = function (message) {
-        messages.push(message);
+      this.addMessage = function (messageContent, system) {
+        let role = "user";
+        if (system) {
+          role = "system";
+        }        
+        messages.push({role: role, content: messageContent});
         return this;
       };
 
@@ -242,7 +249,7 @@ const ChatGPTApp = (function () {
             'method': 'post',
             'headers': {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + openAIKey
+              'Authorization': 'Bearer ' + OpenAIKey
             },
             'payload': JSON.stringify(payload)
             // 'muteHttpExceptions': true
@@ -381,17 +388,17 @@ const ChatGPTApp = (function () {
      * @params {string} apiKey - Your OPEN AI API key.
      * @returns {Chat} - A new Chat instance.
      */
-    newChat: function (apiKey) {
-      return new Chat(apiKey);
+    newChat: function () {
+      return new Chat();
     },
 
-    /**
-     * Create a new message.
-     * @returns {Message} - A new Message instance.
-     */
-    newMessage: function (messageContent) {
-      return new Message(messageContent);
-    },
+    // /**
+    //  * Create a new message.
+    //  * @returns {Message} - A new Message instance.
+    //  */
+    // newMessage: function (messageContent) {
+    //   return new Message(messageContent);
+    // },
 
     /**
      * Create a new function.
@@ -400,6 +407,10 @@ const ChatGPTApp = (function () {
     newFunction: function () {
       return new FunctionObject();
     },
+
+    setAPIKey: function (apiKey) {
+      OpenAIKey = apiKey;
+    }
   }
 }
 )();

@@ -15,6 +15,7 @@ const ChatGPTApp = (function () {
       let argumentsInRightOrder = [];
       let maximumNumberOfCalls = 1;
       let endingFunction = false;
+      let onlyArgs = false;
 
       /**
        * Sets the name for a function.
@@ -47,7 +48,7 @@ const ChatGPTApp = (function () {
         if (bool) {
           endingFunction = true;
         }
-        return this; 
+        return this;
       }
 
       /**
@@ -74,6 +75,20 @@ const ChatGPTApp = (function () {
       }
 
       /**
+        * OPTIONAL
+        * If enabled, the conversation will automatically end when this function is called and the chat will return the arguments in a stringified JSON object.
+        * Default : false
+        * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
+        * @returns {FunctionObject} - The current Function instance.
+        */
+      this.onlyReturnArguments = function (bool) {
+        if (bool) {
+          onlyArgs = true;
+        }
+        return this;
+      }
+
+      /**
        * Returns a JSON representation of the message.
        * @returns {object} - The JSON representation of the message.
        */
@@ -87,7 +102,9 @@ const ChatGPTApp = (function () {
             required: required
           },
           argumentsInRightOrder: argumentsInRightOrder,
-          maximumNumberOfCalls: maximumNumberOfCalls
+          maximumNumberOfCalls: maximumNumberOfCalls,
+          endingFunction: endingFunction,
+          onlyArgs: onlyArgs
         };
       };
     }
@@ -115,8 +132,8 @@ const ChatGPTApp = (function () {
         let role = "user";
         if (system) {
           role = "system";
-        }        
-        messages.push({role: role, content: messageContent});
+        }
+        messages.push({ role: role, content: messageContent });
         return this;
       };
 
@@ -242,6 +259,7 @@ const ChatGPTApp = (function () {
 
             let argsOrder = [];
             let endWithResult = false;
+            let onlyReturnArguments = false;
 
             for (let f in functions) {
               let currentFunction = functions[f].toJSON();
@@ -249,6 +267,7 @@ const ChatGPTApp = (function () {
                 // get the args in the right order
                 argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
                 endWithResult = currentFunction.endingFunction;
+                onlyReturnArguments = currentFunction.onlyArgs;
                 break;
               }
             }
@@ -264,7 +283,27 @@ const ChatGPTApp = (function () {
               response: functionResponse
             });
 
+            // Logger.log("argsOrder : " + argsOrder);
+            // Logger.log("endWithResult : " + endWithResult);
+            // Logger.log("onlyReturnArguments : " + onlyReturnArguments);
+
             if (endWithResult) {
+              Logger.log({
+                message: "Conversation stopped because end function has been called",
+                functionName: functionName,
+                functionArgs: functionArgs,
+                functionResponse: functionResponse
+              })
+              return functionResponse;
+            } else if (onlyReturnArguments) {
+                Logger.log({
+                message: "Conversation stopped because argument return has been called",
+                functionName: functionName,
+                functionArgs: functionArgs,
+                functionResponse: functionResponse
+              })
+              return functionArgs;
+            } else {
               // Inform the chat that the function has been called
               messages.push({
                 "role": "assistant",
@@ -279,16 +318,8 @@ const ChatGPTApp = (function () {
                   "content": functionResponse,
                 }
               )
-            } else {
-              Logger.log({
-                message: "Conversation stopped because end function has been called",
-                functionName: functionName,
-                functionArgs: functionArgs,
-                functionResponse: functionResponse
-              })
-              return functionResponse;
             }
-            
+
             this.run();
 
           } else {

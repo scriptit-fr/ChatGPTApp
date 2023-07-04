@@ -59,16 +59,16 @@ const ChatGPTApp = (function () {
        * @param {string} name - The property name.
        * @param {string} newType - The property type.
        * @param {string} description - The property description.
+       * @param {boolean} [isOptional] - OPTIONAL - To set if the argument is required (default: true).
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.addParameter = function (name, newType, description, isRequired) {
-        isRequired = (isRequired === undefined) ? true : isRequired;
+      this.addParameter = function (name, newType, description, isOptional) {
         properties[name] = {
           type: newType,
           description: description
         };
         argumentsInRightOrder.push(name);
-        if (isRequired) {
+        if (!isOptional) {
           required.push(name);
         }
         return this;

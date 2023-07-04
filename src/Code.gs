@@ -296,7 +296,7 @@ const ChatGPTApp = (function () {
                 functionName: functionName,
                 functionArgs: functionArgs,
               })
-              return functionArgs;
+              return JSON.parse(functionArgs);
             } else {
               let functionResponse = callFunction(functionName, functionArgs, argsOrder);
               if (typeof functionResponse != "string") {

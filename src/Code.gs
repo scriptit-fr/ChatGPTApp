@@ -272,10 +272,7 @@ const ChatGPTApp = (function () {
               }
             }
 
-            Logger.log({
-              message: "Function calling called " + functionName,
-              arguments: functionArgs,
-            });
+
 
             // Logger.log("argsOrder : " + argsOrder);
             // Logger.log("endWithResult : " + endWithResult);
@@ -295,7 +292,7 @@ const ChatGPTApp = (function () {
               return functionResponse;
             } else if (onlyReturnArguments) {
               Logger.log({
-                message: "Conversation stopped because argument return has been called",
+                message: "Conversation stopped because argument return has been enabled - No function has been called",
                 functionName: functionName,
                 functionArgs: functionArgs,
               })
@@ -305,6 +302,10 @@ const ChatGPTApp = (function () {
               if (typeof functionResponse != "string") {
                 functionResponse = String(functionResponse);
               }
+              Logger.log({
+                message: "Function calling called " + functionName,
+                arguments: functionArgs,
+              });
               // Inform the chat that the function has been called
               messages.push({
                 "role": "assistant",

@@ -191,7 +191,6 @@ const ChatGPTApp = (function () {
         let functionCalling = false;
         if (advancedParametersObject) {
           if (advancedParametersObject.hasOwnProperty("function_calling")) { // the user has set a specific function to call
-            Logger.log("coucou");
             payload.functions = functions;
             let function_calling = { name: advancedParametersObject.function_calling };
             payload.function_call = function_calling;
@@ -256,7 +255,6 @@ const ChatGPTApp = (function () {
             // Call the function
             let functionName = responseMessage.function_call.name;
             let functionArgs = parseResponse(responseMessage.function_call.arguments); // HERE THE JSON PARSE
-            Logger.log(functionArgs);
 
             let argsOrder = [];
             let endWithResult = false;
@@ -363,7 +361,6 @@ const ChatGPTApp = (function () {
   }
 
   function parseResponse(response) {
-    Logger.log("Input : " + response)
     try {
       let parsedReponse = JSON.parse(response);
       return parsedReponse;
@@ -399,7 +396,6 @@ const ChatGPTApp = (function () {
         let parsedResponse = JSON.parse(response);
         return parsedResponse;
       } catch (e) {
-        Logger.log(response)
         // If parsing still fails, log the error and return null.
         Logger.log('Error parsing corrected response: ' + e.message);
         return null;

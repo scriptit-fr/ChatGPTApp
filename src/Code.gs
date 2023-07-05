@@ -207,6 +207,7 @@ const ChatGPTApp = (function () {
         let success = false;
 
         let responseMessage;
+        let endReason;
 
         while (attempt < maxAttempts && !success) {
           let options = {
@@ -225,6 +226,13 @@ const ChatGPTApp = (function () {
           if (responseCode === 200) {
             // The request was successful, exit the loop.
             responseMessage = JSON.parse(response.getContentText()).choices[0].message;
+            endReason = JSON.parse(response.getContentText()).choices[0].finish_reason;
+            if (endReason == "length") {
+              Logger.log({
+                message: "WARNING : Answer has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property",
+                currentMaxToken: maxToken
+              });
+            }
             success = true;
           } else if (responseCode === 503) {
             // The server is temporarily unavailable, wait before retrying.
@@ -254,7 +262,7 @@ const ChatGPTApp = (function () {
           if (responseMessage.function_call) {
             // Call the function
             let functionName = responseMessage.function_call.name;
-            let functionArgs = parseResponse(responseMessage.function_call.arguments); // HERE THE JSON PARSE
+            let functionArgs = parseResponse(responseMessage.function_call.arguments);
 
             let argsOrder = [];
             let endWithResult = false;
@@ -385,6 +393,8 @@ const ChatGPTApp = (function () {
             lines[i] = line + ' ""';
           } else if (!line.includes(':')) {
             lines[i] = line + ': ""';
+          } else if (line[line.length - 1] !== '"'){
+            lines[i] = line + '"';
           }
         }
       }
@@ -397,7 +407,10 @@ const ChatGPTApp = (function () {
         return parsedResponse;
       } catch (e) {
         // If parsing still fails, log the error and return null.
-        Logger.log('Error parsing corrected response: ' + e.message);
+        console.warn({
+          message: 'Error parsing corrected response: ' + e.message,
+          argumentJSON: response
+        });
         return null;
       }
     }

@@ -222,11 +222,10 @@ const ChatGPTApp = (function () {
 
           let response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
           let responseCode = response.getResponseCode();
-          responseMessage = JSON.parse(response.getContentText()).choices[0].message;
-
 
           if (responseCode === 200) {
             // The request was successful, exit the loop.
+            responseMessage = JSON.parse(response.getContentText()).choices[0].message;
             success = true;
           } else if (responseCode === 503) {
             // The server is temporarily unavailable, wait before retrying.
@@ -242,6 +241,7 @@ const ChatGPTApp = (function () {
 
         if (!success) {
           console.error('Failed to fetch the URL after', maxAttempts, 'attempts');
+          return
         }
 
 
@@ -255,7 +255,8 @@ const ChatGPTApp = (function () {
           if (responseMessage.function_call) {
             // Call the function
             let functionName = responseMessage.function_call.name;
-            let functionArgs = responseMessage.function_call.arguments;
+            let functionArgs = parseResponse(responseMessage.function_call.arguments); // HERE THE JSON PARSE
+            Logger.log(functionArgs);
 
             let argsOrder = [];
             let endWithResult = false;
@@ -288,15 +289,15 @@ const ChatGPTApp = (function () {
                 functionName: functionName,
                 functionArgs: functionArgs,
                 functionResponse: functionResponse
-              })
+              });
               return functionResponse;
             } else if (onlyReturnArguments) {
               Logger.log({
                 message: "Conversation stopped because argument return has been enabled - No function has been called",
                 functionName: functionName,
                 functionArgs: functionArgs,
-              })
-              return JSON.parse(functionArgs);
+              });
+              return functionArgs;
             } else {
               let functionResponse = callFunction(functionName, functionArgs, argsOrder);
               if (typeof functionResponse != "string") {
@@ -310,9 +311,8 @@ const ChatGPTApp = (function () {
               messages.push({
                 "role": "assistant",
                 "content": null,
-                "function_call": { "name": functionName, "arguments": functionArgs }
-              }
-              )
+                "function_call": { "name": functionName, "arguments": JSON.stringify(functionArgs) }
+              });
               messages.push(
                 {
                   "role": "function",
@@ -343,7 +343,7 @@ const ChatGPTApp = (function () {
 
   function callFunction(functionName, jsonArgs, argsOrder) {
     // Parse JSON arguments
-    var argsObj = JSON.parse(jsonArgs);
+    var argsObj = jsonArgs;
     let argsArray = argsOrder.map(argName => argsObj[argName]);
 
     // Call the function dynamically
@@ -362,6 +362,50 @@ const ChatGPTApp = (function () {
     }
   }
 
+  function parseResponse(response) {
+    Logger.log("Input : " + response)
+    try {
+      let parsedReponse = JSON.parse(response);
+      return parsedReponse;
+    } catch (e) {
+      // Split the response into lines
+      let lines = response.trim().split('\n');
+
+      if (lines[0] !== '{') {
+        Logger.log('Unexpected start of response');
+        return null;
+      }
+      else if (lines[lines.length - 1] !== '}') {
+        lines.push('}');
+      }
+      for (let i = 1; i < lines.length - 1; i++) {
+        let line = lines[i].trim();
+        // For other lines, check for missing values or colons
+        line = line.trimEnd();  // Strip trailing white spaces
+        if (line[line.length - 1] !== ',') {
+          if (line[line.length - 1] == ':') {
+            // If line has the format "property":, add null,
+            lines[i] = line + ' ""';
+          } else if (!line.includes(':')) {
+            lines[i] = line + ': ""';
+          }
+        }
+      }
+      // Reconstruct the response
+      response = lines.join('\n').trim();
+
+      // Try parsing the corrected response
+      try {
+        let parsedResponse = JSON.parse(response);
+        return parsedResponse;
+      } catch (e) {
+        Logger.log(response)
+        // If parsing still fails, log the error and return null.
+        Logger.log('Error parsing corrected response: ' + e.message);
+        return null;
+      }
+    }
+  }
 
   return {
     /**

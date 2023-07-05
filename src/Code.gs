@@ -216,8 +216,8 @@ const ChatGPTApp = (function () {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer ' + OpenAIKey
             },
-            'payload': JSON.stringify(payload)
-            // 'muteHttpExceptions': true
+            'payload': JSON.stringify(payload),
+            'muteHttpExceptions': true
           };
 
           let response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);

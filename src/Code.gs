@@ -1,6 +1,8 @@
 const ChatGPTApp = (function () {
 
   let OpenAIKey = "";
+  let GoogleKey = "";
+  let BROWSING = false;
 
   /**
    * @class
@@ -110,6 +112,18 @@ const ChatGPTApp = (function () {
     }
   }
 
+  let WEB_SEARCH = new FunctionObject()
+    .setName("webSearch")
+    .setDescription("to do a web research")
+    .addParameter("query", "string", "the query for the web search.");
+
+  let CLICK_LINK = new FunctionObject()
+    .setName("clickOnLink")
+    .setDescription("To get the content of the most relevant web page, given several pages infos after a web search.")
+    .addParameter("url", "string", "The link to the best page found after a web research.")
+
+
+
   /**
    * @class
    * Class representing a chat.
@@ -121,6 +135,7 @@ const ChatGPTApp = (function () {
       let model = "gpt-3.5-turbo"; // default 
       let temperature = 0;
       let maxToken = 300;
+      // let searchEngineId = "221c662683d054b63";
 
       /**
        * Add a message to the chat.
@@ -163,6 +178,13 @@ const ChatGPTApp = (function () {
         return JSON.stringify(functions);
       };
 
+      this.enableBrowsing = function (bool) {
+        if (bool) {
+          BROWSING = true
+        }
+        return this;
+      }
+
       /**
        * Start the chat conversation.
        * Will return the chat answer.
@@ -178,6 +200,15 @@ const ChatGPTApp = (function () {
           if (advancedParametersObject.hasOwnProperty("temperature")) {
             temperature = advancedParametersObject.temperature;
           }
+        }
+
+        let numberOfWebResearch
+        if (BROWSING) {
+          functions.push(WEB_SEARCH);
+          functions.push(CLICK_LINK)
+          messages.push({ role: "system", content: "If necessary, you can browse the web to get more information." });
+          messages.push({ role: "system", content: "If you start browsing the web, do NOT go more than once on the same web page, eg do not call the funtion clickOnLink twice with the same argument." });
+          maxToken = 800;
         }
 
         let payload = {
@@ -271,15 +302,12 @@ const ChatGPTApp = (function () {
             for (let f in functions) {
               let currentFunction = functions[f].toJSON();
               if (currentFunction.name == functionName) {
-                // get the args in the right order
                 argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
                 endWithResult = currentFunction.endingFunction;
                 onlyReturnArguments = currentFunction.onlyArgs;
                 break;
               }
             }
-
-
 
             // Logger.log("argsOrder : " + argsOrder);
             // Logger.log("endWithResult : " + endWithResult);
@@ -309,10 +337,12 @@ const ChatGPTApp = (function () {
               if (typeof functionResponse != "string") {
                 functionResponse = String(functionResponse);
               }
-              Logger.log({
-                message: "Function calling called " + functionName,
-                arguments: functionArgs,
-              });
+              if (functionName !== "webSearch" && functionName !== "clickOnLink") {
+                Logger.log({
+                  message: "Function calling called " + functionName,
+                  arguments: functionArgs,
+                });
+              }
               // Inform the chat that the function has been called
               messages.push({
                 "role": "assistant",
@@ -348,6 +378,13 @@ const ChatGPTApp = (function () {
   }
 
   function callFunction(functionName, jsonArgs, argsOrder) {
+    // Handle internal functions
+    if (functionName == "webSearch") {
+      return webSearch(jsonArgs.query);
+    }
+    if (functionName == "clickOnLink") {
+      return clickOnLink(jsonArgs.url);
+    }
     // Parse JSON arguments
     var argsObj = jsonArgs;
     let argsArray = argsOrder.map(argName => argsObj[argName]);
@@ -393,7 +430,7 @@ const ChatGPTApp = (function () {
             lines[i] = line + ' ""';
           } else if (!line.includes(':')) {
             lines[i] = line + ': ""';
-          } else if (line[line.length - 1] !== '"'){
+          } else if (line[line.length - 1] !== '"') {
             lines[i] = line + '"';
           }
         }
@@ -416,6 +453,92 @@ const ChatGPTApp = (function () {
     }
   }
 
+  function webSearch(query) {
+    Logger.log(`Web search : "${query}"`);
+    const searchEngineId = "221c662683d054b63";
+    const url = 'https://www.googleapis.com/customsearch/v1?key=' + GOOGLE_API_KEY + '&cx=' + searchEngineId + '&q=' + encodeURIComponent(query);
+
+    const options = {
+      'method': 'get',
+      'muteHttpExceptions': true
+    };
+
+    let response = UrlFetchApp.fetch(url, options);
+    let data = JSON.parse(response.getContentText());
+
+    let resultsInfo = [];
+    let resultsContent = [];
+
+    if (data.items) {
+      resultsInfo = data.items.map(function (item) {
+        return {
+          title: item.title,
+          link: item.link,
+          snippet: item.snippet
+        };
+      }).filter(Boolean); // Remove undefined values from the results array
+    }
+
+    // for (let key in resultsInfo) {
+    //   // Logger.log(`Title: ${resultsInfo[key].title}, Snippet: ${resultsInfo[key].snippet} URL: ${resultsInfo[key].link}`);
+
+    //   let pageContent = UrlFetchApp.fetch(resultsInfo[key].link).getContentText();
+    //   pageContent = getReadableArticleContent(pageContent);
+    //   Logger.log(pageContent);
+    //   resultsContent.push(pageContent);
+    // }
+    return JSON.stringify(resultsInfo);
+  }
+
+  function clickOnLink(url) {
+    Logger.log("Clicked on a link");
+    Logger.log(url);
+    let pageContent = UrlFetchApp.fetch(url).getContentText();
+    pageContent = sanitizeHtml(pageContent);
+    Logger.log(pageContent);
+    return pageContent;
+  }
+
+  function sanitizeHtml(pageContent) {
+
+    var startBody = pageContent.indexOf('<body');
+    var endBody = pageContent.indexOf('</body>') + '</body>'.length;
+    var bodyContent = pageContent.slice(startBody, endBody);
+
+    // naive way to extract paragraphs
+    var paragraphs = bodyContent.match(/<p[^>]*>([^<]+)<\/p>/g);
+
+    var usefullContent = "";
+    if (paragraphs) {
+      for (var i = 0; i < paragraphs.length; i++) {
+        var paragraph = paragraphs[i];
+
+        // remove HTML tags
+        var taglessParagraph = paragraph.replace(/<[^>]+>/g, '');
+
+        usefullContent += taglessParagraph + '\n';
+      }
+    }
+
+    // remove doctype
+    usefullContent = usefullContent.replace(/<!DOCTYPE[^>]*>/i, '');
+
+    // remove html comments
+    usefullContent = usefullContent.replace(/<!--[\s\S]*?-->/g, '');
+
+    // remove new lines
+    usefullContent = usefullContent.replace(/\n/g, '');
+
+    // replace multiple spaces with a single space
+    usefullContent = usefullContent.replace(/ +(?= )/g, '');
+
+    // trim the result
+    usefullContent = usefullContent.trim();
+
+    return usefullContent;
+  }
+
+
   return {
     /**
      * Create a new chat.
@@ -434,9 +557,13 @@ const ChatGPTApp = (function () {
       return new FunctionObject();
     },
 
-    setAPIKey: function (apiKey) {
+    setOpenAIAPIKey: function (apiKey) {
       OpenAIKey = apiKey;
-    }
+    },
+
+    setGoogleAPIKey: function (apiKey) {
+      GoogleKey = apiKey;
+    },
   }
 }
 )();

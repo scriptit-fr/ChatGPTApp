@@ -1,129 +1,126 @@
-# ChatGPTApp Documentation
+# ChatGPTApp Library
 
-ChatGPTApp is a library that allows for easier usage of the OpenAI API with Google Apps Script. It provides a simple interface for creating and managing chat sessions with the OpenAI API and integrating it into your Google Apps Script projects.
+A library for interacting with the ChatGPT API. This library allows you to create chat conversations and call functions using the ChatGPT model.
+
+## Installation
+
+To use the ChatGPTApp library, follow these steps:
+
+1. Open your Apps Script project in Google Workspace.
+2. In the Apps Script editor, click on the menu **File > New > Script file**.
+3. Name the new script file "ChatGPTApp".
+4. Copy and paste the library code into the "ChatGPTApp.gs" file.
+5. Save the script file.
+
+## Usage
+
+To use the ChatGPTApp library, follow the example below:
+
+```javascript
+// Initialize the ChatGPTApp library
+const chatGPT = ChatGPTApp();
+
+// Create a chat conversation
+const chat = chatGPT.Chat();
+
+// Add messages to the chat
+chat.addMessage("Hello, how can I assist you?");
+
+// Run the chat conversation
+const response = chat.run();
+
+// Process the response
+console.log(response);
+```
 
 ## ChatGPTApp API
 
-The following classes and methods are available with the ChatGPTApp library:
+### ChatGPTApp()
 
-### ChatGPTApp.newChat()
+The `ChatGPTApp` object is the main entry point for using the ChatGPTApp library.
 
-This function creates and returns a new instance of the `Chat` class. This class represents a conversation.
+#### Properties
 
-```javascript
-let myChat = ChatGPTApp.newChat();
-```
+- `OpenAIKey`: A string representing the OpenAI API key.
+- `GoogleKey`: A string representing the Google API key. This is only if you want to enable browsing.
+- `BROWSING`: A boolean value indicating whether browsing is enabled.
 
-### ChatGPTApp.newMessage(messageContent)
+### ChatGPTApp.Chat()
 
-This function creates and returns a new instance of the `Message` class. It requires a string representing the message content as a parameter.
-By default, the message is assigned the role "user" (most common use case). You will see bellow how you can modify it. 
+The `Chat` class represents a chat conversation.
 
-```javascript
-let myMessage = ChatGPTApp.newMessage("Hello, how are you?");
-```
+#### Methods
 
-### ChatGPTApp.newFunction()
+- `addMessage(messageContent: string, system?: boolean): Chat`: Adds a message to the chat. The `messageContent` parameter is a string representing the content of the message. The `system` parameter is an optional boolean value indicating if the message is from the system. Returns the current `Chat` instance.
+- `addFunction(functionObject: FunctionObject): Chat`: Adds a function to the chat. The `functionObject` parameter is an instance of the `FunctionObject` class. Returns the current `Chat` instance.
+- `getMessages(): string[]`: Returns an array of strings representing the messages in the chat.
+- `getFunctions(): FunctionObject[]`: Returns an array of `FunctionObject` instances representing the functions in the chat.
+- `enableBrowsing(bool: boolean): Chat`: Enables or disables browsing in the chat. The `bool` parameter is a boolean value indicating whether browsing should be enabled. Returns the current `Chat` instance.
+- `run(advancedParametersObject?: object): { functionName: string, functionArgs: JSON }`: Starts the chat conversation and returns the function called by the model, if any. The `advancedParametersObject` parameter is an optional object for advanced settings and specific usage only. Returns an object with the name of the function (`functionName`) and the arguments of the function (`functionArgs`).
 
-This function creates and returns a new instance of the `FunctionObject` class. 
+### ChatGPTApp.FunctionObject()
 
-```javascript
-let myFunction = ChatGPTApp.newFunction();
-```
+The `FunctionObject` class represents a function known by the function calling model.
 
-## Classes
+#### Methods
 
-### Message
+- `setName(newName: string): FunctionObject`: Sets the name for the function. Returns the current `FunctionObject` instance.
+- `setDescription(newDescription: string): FunctionObject`: Sets the description for the function. Returns the current `FunctionObject` instance.
+- `endWithResult(bool: boolean): FunctionObject`: Sets whether the conversation should automatically end when this function is called. Returns the current `FunctionObject` instance.
+- `addParameter(name: string, newType: string, description: string, isOptional?: boolean): FunctionObject`: Adds a property (argument) to the function. The `name` parameter is the property name, `newType` is the property type, `description
 
-#### Message.setSystemInstruction(bool)
+is the property description, and `isOptional` is an optional boolean value indicating if the argument is required. Returns the current `FunctionObject` instance.
+- `onlyReturnArguments(bool: boolean): FunctionObject`: Sets whether the conversation should automatically end when this function is called and return only the arguments in a stringified JSON object. Returns the current `FunctionObject` instance.
+- `toJSON(): object`: Returns a JSON representation of the function.
 
-Sets the role of the message as 'system' if `bool` is `true`. If `false`, the role remains 'user'.
-The use of this function is of course optionnal.
+## Examples
 
-```javascript
-myMessage.setSystemInstruction(true);
-```
-
-#### Message.setContent(newContent)
-
-Modifies the content of the message.
+### Example 1: Adding Messages and Running the Chat Conversation
 
 ```javascript
-myMessage.setContent("What's the weather today?");
+const chatGPT = ChatGPTApp();
+
+const chat = chatGPT.Chat();
+
+// Add messages to the chat
+chat.addMessage("Hello, how can I assist you?");
+chat.addMessage("What's the weather like today?");
+
+// Run the chat conversation
+const response = chat.run();
+
+console.log(response);
 ```
 
-### FunctionObject
-
-#### FunctionObject.setName(newName)
-
-Sets the name of the function.
+### Example 2: Adding Functions and Running the Chat Conversation
 
 ```javascript
-myFunction.setName("getWeather");
+const chatGPT = ChatGPTApp();
+
+const chat = chatGPT.Chat();
+
+// Create a function object
+const calculateFunction = new chatGPT.FunctionObject()
+  .setName("calculate")
+  .setDescription("Perform a calculation")
+  .addParameter("expression", "string", "The mathematical expression to calculate.");
+
+// Add the function to the chat
+chat.addFunction(calculateFunction);
+
+// Add messages to the chat
+chat.addMessage("Hello, how can I assist you?");
+chat.addMessage("Please calculate the result of '2 + 2'.");
+
+// Run the chat conversation
+const response = chat.run();
+
+console.log(response);
+
 ```
 
-#### FunctionObject.setDescription(newDescription)
+## Notes
 
-Sets the description of the function.
-
-```javascript
-myFunction.setDescription("Gets the current weather.");
-```
-
-#### FunctionObject.addParameter(name, newType, description, isRequired)
-
-Adds a property or argument to the function. The fourth parameter, `isRequired`, is optional and defaults to `true` if not specified.
-
-```javascript
-myFunction.addParameter("location", "string", "The location to get the weather for", true);
-```
-
-#### FunctionObject.toJSON()
-
-Returns a JSON representation of the function.
-
-```javascript
-let functionJSON = myFunction.toJSON();
-```
-
-### Chat
-
-#### Chat.addMessage(message)
-
-Adds a message to the chat. The parameter `message` should be an instance of the `Message` class.
-
-```javascript
-myChat.addMessage(myMessage);
-```
-
-#### Chat.addFunction(functionObject)
-
-Adds a function to the chat. The parameter `functionObject` should be an instance of the `FunctionObject` class.
-
-```javascript
-myChat.addFunction(myFunction);
-```
-
-#### Chat.getMessages()
-
-Returns the messages of the chat in a JSON string format.
-
-```javascript
-let messages = myChat.getMessages();
-```
-
-#### Chat.getFunctions()
-
-Returns the functions of the chat in a JSON string format.
-
-```javascript
-let functions = myChat.getFunctions();
-```
-
-#### Chat.runConversation(openAIKey, advancedParametersObject)
-
-Starts the chat conversation and returns the model's response. The `advancedParametersObject` parameter is optional and can be used to specify advanced parameters such as `model`, `temperature`, and `function_calling`.
-
-```javascript
-let response = myChat.runConversation('your_openai_key', { model: "gpt-3.5-turbo", temperature: 0.5 });
-```
+- Ensure that you have a valid OpenAI API key and Google API key before using the library.
+- Make sure to enable browsing if you need to perform web searches.
+- The library is designed to work with the ChatGPT model and the function calling model. Ensure that you have the appropriate models enabled in your OpenAI account.

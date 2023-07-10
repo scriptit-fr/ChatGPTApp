@@ -1,7 +1,7 @@
 const ChatGPTApp = (function () {
 
   let OpenAIKey = "";
-  let GoogleKey = "";
+  let GoogleCustomSearchAPIKey = "";
   let BROWSING = false;
 
   /**
@@ -112,17 +112,15 @@ const ChatGPTApp = (function () {
     }
   }
 
-  let WEB_SEARCH = new FunctionObject()
+  let webSearchFunction = new FunctionObject()
     .setName("webSearch")
-    .setDescription("to do a web research")
-    .addParameter("query", "string", "the query for the web search.");
+    .setDescription("Perform a web search via the Google Custom Search JSON API. Returns an array of search results (including the URL, title and text snippets for each result)")
+    .addParameter("q", "string", "the query for the web search.");
 
-  let CLICK_LINK = new FunctionObject()
-    .setName("clickOnLink")
-    .setDescription("To get the content of the most relevant web page, given several pages infos after a web search.")
-    .addParameter("url", "string", "The link to the best page found after a web research.")
-
-
+  let urlFetchFunction = new FunctionObject()
+    .setName("urlFetch")
+    .setDescription("Fetch the viewable contents of a web page. It will strip HTML tags, returning just raw text.")
+    .addParameter("url", "string", "The URL to fetch.");
 
   /**
    * @class
@@ -135,7 +133,6 @@ const ChatGPTApp = (function () {
       let model = "gpt-3.5-turbo"; // default 
       let temperature = 0;
       let maxToken = 300;
-      // let searchEngineId = "221c662683d054b63";
 
       /**
        * Add a message to the chat.
@@ -204,11 +201,9 @@ const ChatGPTApp = (function () {
 
         let numberOfWebResearch
         if (BROWSING) {
-          functions.push(WEB_SEARCH);
-          functions.push(CLICK_LINK)
-          messages.push({ role: "system", content: "If necessary, you can browse the web to get more information." });
-          messages.push({ role: "system", content: "If you start browsing the web, do NOT go more than once on the same web page, eg do not call the funtion clickOnLink twice with the same argument." });
-          maxToken = 800;
+          messages.push({ role: "system", content: "You are able to perform queries on Google search using the function webSearch, then open results and get the content of a web page using the function urlFetch." });
+          functions.push(webSearchFunction);
+          functions.push(urlFetchFunction);
         }
 
         let payload = {
@@ -282,7 +277,6 @@ const ChatGPTApp = (function () {
           return
         }
 
-
         Logger.log({
           message: 'Got response from open AI API',
           response: JSON.stringify(responseMessage)
@@ -337,7 +331,7 @@ const ChatGPTApp = (function () {
               if (typeof functionResponse != "string") {
                 functionResponse = String(functionResponse);
               }
-              if (functionName !== "webSearch" && functionName !== "clickOnLink") {
+              if (functionName !== "webSearch" && functionName !== "urlFetch") {
                 Logger.log({
                   message: "Function calling called " + functionName,
                   arguments: functionArgs,
@@ -360,7 +354,8 @@ const ChatGPTApp = (function () {
 
             this.run();
 
-          } else {
+          }
+          else {
             // no function has been called 
             Logger.log({
               message: "No function has been called by the model",
@@ -368,7 +363,8 @@ const ChatGPTApp = (function () {
             // if no function has been found, stop here
             return responseMessage;
           }
-        } else {
+        }
+        else {
           // Logger.log(responseMessage.content)
           // Return the chat answer
           return responseMessage;
@@ -380,10 +376,10 @@ const ChatGPTApp = (function () {
   function callFunction(functionName, jsonArgs, argsOrder) {
     // Handle internal functions
     if (functionName == "webSearch") {
-      return webSearch(jsonArgs.query);
+      return webSearch(jsonArgs.q);
     }
-    if (functionName == "clickOnLink") {
-      return clickOnLink(jsonArgs.url);
+    if (functionName == "urlFetch") {
+      return urlFetch(jsonArgs.url);
     }
     // Parse JSON arguments
     var argsObj = jsonArgs;
@@ -453,17 +449,12 @@ const ChatGPTApp = (function () {
     }
   }
 
-  function webSearch(query) {
-    Logger.log(`Web search : "${query}"`);
+  function webSearch(q) {
+    Logger.log(`Web search : "${q}"`);
     const searchEngineId = "221c662683d054b63";
-    const url = 'https://www.googleapis.com/customsearch/v1?key=' + GOOGLE_API_KEY + '&cx=' + searchEngineId + '&q=' + encodeURIComponent(query);
+    const url = `https://www.googleapis.com/customsearch/v1?key=${GoogleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
 
-    const options = {
-      'method': 'get',
-      'muteHttpExceptions': true
-    };
-
-    let response = UrlFetchApp.fetch(url, options);
+    let response = UrlFetchApp.fetch(url);
     let data = JSON.parse(response.getContentText());
 
     let resultsInfo = [];
@@ -490,7 +481,7 @@ const ChatGPTApp = (function () {
     return JSON.stringify(resultsInfo);
   }
 
-  function clickOnLink(url) {
+  function urlFetch(url) {
     Logger.log("Clicked on a link");
     Logger.log(url);
     let pageContent = UrlFetchApp.fetch(url).getContentText();
@@ -562,7 +553,7 @@ const ChatGPTApp = (function () {
     },
 
     setGoogleAPIKey: function (apiKey) {
-      GoogleKey = apiKey;
+      GoogleCustomSearchAPIKey = apiKey;
     },
   }
 }

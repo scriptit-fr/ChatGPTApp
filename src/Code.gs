@@ -20,7 +20,7 @@ const ChatGPTApp = (function () {
       let onlyArgs = false;
 
       /**
-       * Sets the name for a function.
+       * Sets the name of a function.
        * @param {string} newName - The name to set for the function.
        * @returns {FunctionObject} - The current Function instance.
        */
@@ -31,11 +31,11 @@ const ChatGPTApp = (function () {
 
       /**
        * Sets the description for a function.
-       * @param {string} newDescription - The description to set for the function.
+       * @param {string} description - The description to set for the function.
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.setDescription = function (newDescription) {
-        description = newDescription;
+      this.setDescription = function (description) {
+        description = description;
         return this;
       };
 
@@ -329,7 +329,11 @@ const ChatGPTApp = (function () {
             if (endWithResult) {
               let functionResponse = callFunction(functionName, functionArgs, argsOrder);
               if (typeof functionResponse != "string") {
-                functionResponse = String(functionResponse);
+                if (typeof functionResponse == "object") {
+                  functionResponse = JSON.stringify(functionResponse);
+                } else {
+                  functionResponse = String(functionResponse);
+                }
               }
               if (ENABLE_LOGS) {
                 console.log({
@@ -354,7 +358,11 @@ const ChatGPTApp = (function () {
             } else {
               let functionResponse = callFunction(functionName, functionArgs, argsOrder);
               if (typeof functionResponse != "string") {
-                functionResponse = String(functionResponse);
+                if (typeof functionResponse == "object") {
+                  functionResponse = JSON.stringify(functionResponse);
+                } else {
+                  functionResponse = String(functionResponse);
+                }
               }
               if (functionName !== "webSearch" && functionName !== "urlFetch") {
                 if (ENABLE_LOGS) {
@@ -368,11 +376,11 @@ const ChatGPTApp = (function () {
                 if (!functionResponse) {
                   if (ENABLE_LOGS) {
                     console.log("The website didn't respond, going back to the results page");
-                    let searchResults = JSON.parse(messages[messages.length - 1].content);
-                    let newSearchResult = searchResults.filter(function (obj) {
-                      return obj.link !== functionArgs.url;
-                    });
                   }
+                  let searchResults = JSON.parse(messages[messages.length - 1].content);
+                  let newSearchResult = searchResults.filter(function (obj) {
+                    return obj.link !== functionArgs.url;
+                  });
                   messages[messages.length - 1].content = JSON.stringify(newSearchResult);
                   return this.run();
                 }
@@ -586,6 +594,10 @@ const ChatGPTApp = (function () {
     setGoogleAPIKey: function (apiKey) {
       GoogleCustomSearchAPIKey = apiKey;
     },
+
+    disableLogs: function () {
+      ENABLE_LOGS = false;
+    }
   }
 }
 )();

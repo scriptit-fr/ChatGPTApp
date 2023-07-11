@@ -2,9 +2,7 @@ const ChatGPTApp = (function () {
 
   let OpenAIKey = "";
   let GoogleCustomSearchAPIKey = "";
-  let BROWSING = false;
-
-  let SEARCH_RESULTS = [];
+  let ENABLE_LOGS = true;
 
   /**
    * @class
@@ -88,7 +86,7 @@ const ChatGPTApp = (function () {
               type: itemsType
             }
           } else {
-            Logger.log("Please precise the type of the items contained in the array when calling addParameter. Use format Array.<itemsType> for the type parameter.");
+            console.log("Please precise the type of the items contained in the array when calling addParameter. Use format Array.<itemsType> for the type parameter.");
             return
           }
 
@@ -158,6 +156,7 @@ const ChatGPTApp = (function () {
       let model = "gpt-3.5-turbo"; // default 
       let temperature = 0;
       let maxToken = 300;
+      let browsing = false;
 
       /**
        * Add a message to the chat.
@@ -202,7 +201,7 @@ const ChatGPTApp = (function () {
 
       this.enableBrowsing = function (bool) {
         if (bool) {
-          BROWSING = true
+          browsing = true
         }
         return this;
       }
@@ -212,9 +211,9 @@ const ChatGPTApp = (function () {
        * Will return the chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
        * @param {object} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
-       * @returns {Promise<string>} - the stringifed last message of the chat 
+       * @returns {string} - the last message of the chat 
        */
-      this.run = async function (advancedParametersObject) {
+      this.run = function (advancedParametersObject) {
         if (advancedParametersObject) {
           if (advancedParametersObject.hasOwnProperty("model")) {
             model = advancedParametersObject.model;
@@ -224,7 +223,7 @@ const ChatGPTApp = (function () {
           }
         }
 
-        if (BROWSING && messages[messages.length - 1].role !== "function") {
+        if (browsing && messages[messages.length - 1].role !== "function") {
           messages.push({ role: "system", content: "You are able to perform queries on Google search using the function webSearch, then open results and get the content of a web page using the function urlFetch." });
           functions.push(webSearchFunction);
           functions.push(urlFetchFunction);
@@ -278,7 +277,7 @@ const ChatGPTApp = (function () {
             responseMessage = JSON.parse(response.getContentText()).choices[0].message;
             endReason = JSON.parse(response.getContentText()).choices[0].finish_reason;
             if (endReason == "length") {
-              Logger.log({
+              console.log({
                 message: "WARNING : Answer has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property",
                 currentMaxToken: maxToken
               });
@@ -298,10 +297,10 @@ const ChatGPTApp = (function () {
 
         if (!success) {
           console.error('Failed to fetch the URL after', maxAttempts, 'attempts');
-          return messages[-1];
+          return "request failed";
         }
 
-        // Logger.log({
+        // console.log({
         //   message: 'Got response from open AI API',
         //   response: JSON.stringify(responseMessage)
         // });
@@ -332,21 +331,25 @@ const ChatGPTApp = (function () {
               if (typeof functionResponse != "string") {
                 functionResponse = String(functionResponse);
               }
-              Logger.log({
-                message: "Conversation stopped because end function has been called",
-                functionName: functionName,
-                functionArgs: functionArgs,
-                functionResponse: functionResponse
-              });
-              return messages[messages.length - 1];
+              if (ENABLE_LOGS) {
+                console.log({
+                  message: "Conversation stopped because end function has been called",
+                  functionName: functionName,
+                  functionArgs: functionArgs,
+                  functionResponse: functionResponse
+                });
+              }
+              return responseMessage.content;;
 
 
             } else if (onlyReturnArguments) {
-              Logger.log({
-                message: "Conversation stopped because argument return has been enabled - No function has been called",
-                functionName: functionName,
-                functionArgs: functionArgs,
-              });
+              if (ENABLE_LOGS) {
+                console.log({
+                  message: "Conversation stopped because argument return has been enabled - No function has been called",
+                  functionName: functionName,
+                  functionArgs: functionArgs,
+                });
+              }
               return functionArgs;
             } else {
               let functionResponse = callFunction(functionName, functionArgs, argsOrder);
@@ -354,24 +357,25 @@ const ChatGPTApp = (function () {
                 functionResponse = String(functionResponse);
               }
               if (functionName !== "webSearch" && functionName !== "urlFetch") {
-                Logger.log({
-                  message: "Function calling called " + functionName,
-                  arguments: functionArgs,
-                });
-              }
-              else if (functionName == "webSearch") {
-                SEARCH_RESULTS = JSON.parse(functionResponse);
+                if (ENABLE_LOGS) {
+                  console.log({
+                    message: "Function calling called " + functionName,
+                    arguments: functionArgs,
+                  });
+                }
               }
               else if (functionName == "urlFetch") {
                 if (!functionResponse) {
-                  Logger.log("The website didn't respond, going back to the results page");
-                  let searchResults = JSON.parse(messages[messages.length - 1].content);
-                  let newSearchResult = searchResults.filter(function (obj) {
-                    return obj.link !== functionArgs.url;
-                  });
+                  if (ENABLE_LOGS) {
+                    console.log("The website didn't respond, going back to the results page");
+                    let searchResults = JSON.parse(messages[messages.length - 1].content);
+                    let newSearchResult = searchResults.filter(function (obj) {
+                      return obj.link !== functionArgs.url;
+                    });
+                  }
                   messages[messages.length - 1].content = JSON.stringify(newSearchResult);
+                  return this.run();
                 }
-
               }
               // Inform the chat that the function has been called
               messages.push({
@@ -388,20 +392,24 @@ const ChatGPTApp = (function () {
               )
             }
 
-            this.run();
+            return this.run();
 
           }
           else {
             // no function has been called 
-            Logger.log({
-              message: "No function has been called by the model",
-            });
+            if (functions.length > 0) {
+              if (ENABLE_LOGS) {
+                console.log({
+                  message: "No function has been called by the model",
+                });
+              }
+            }
             // if no function has been found, stop here
-            return messages[messages.length - 1];
+            return responseMessage.content;
           }
         }
         else {
-          return messages[messages.length - 1];
+          return responseMessage.content;
         }
       }
     }
@@ -428,7 +436,7 @@ const ChatGPTApp = (function () {
         return "the function has been sucessfully executed but has nothing to return";
       }
     } else {
-      Logger.log("Function not found or not a function: " + functionName);
+      console.log("Function not found or not a function: " + functionName);
       return "the function was not found and was not executed."
     }
   }
@@ -481,7 +489,7 @@ const ChatGPTApp = (function () {
   }
 
   function webSearch(q) {
-    Logger.log(`Web search : "${q}"`);
+    console.log(`Web search : "${q}"`);
     const searchEngineId = "221c662683d054b63";
     const url = `https://www.googleapis.com/customsearch/v1?key=${GoogleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
 
@@ -504,8 +512,11 @@ const ChatGPTApp = (function () {
   }
 
   function urlFetch(url) {
-    Logger.log("Clicked on a link");
-    let pageContent = UrlFetchApp.fetch(url).getContentText();
+    console.log("Clicked on a link");
+    const options = {
+      'muteHttpExceptions': true
+    }
+    let pageContent = UrlFetchApp.fetch(url, options).getContentText();
     pageContent = sanitizeHtml(pageContent);
     return pageContent;
   }

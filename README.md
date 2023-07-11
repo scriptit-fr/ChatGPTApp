@@ -1,126 +1,210 @@
-# ChatGPTApp Library
 
-A library for interacting with the ChatGPT API. This library allows you to create chat conversations and call functions using the ChatGPT model.
+# ChatGPTApp Google Apps Script Library Documentation
 
-## Installation
+The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT into your Google Apps Script projects. It allows for structured conversation, function calling and web browsing capabilities.
 
-To use the ChatGPTApp library, follow these steps:
+## Setup
 
-1. Open your Apps Script project in Google Workspace.
-2. In the Apps Script editor, click on the menu **File > New > Script file**.
-3. Name the new script file "ChatGPTApp".
-4. Copy and paste the library code into the "ChatGPTApp.gs" file.
-5. Save the script file.
+To use the ChatGPTApp library, you first need to include the library code in your project. You then need to provide your OpenAI API key via `setOpenAIAPIKey()`. 
 
-## Usage
-
-To use the ChatGPTApp library, follow the example below:
+If you wish to enable browsing capabilities, you will also need to provide your Google API key via `setGoogleAPIKey()`.
 
 ```javascript
-// Initialize the ChatGPTApp library
-const chatGPT = ChatGPTApp();
-
-// Create a chat conversation
-const chat = chatGPT.Chat();
-
-// Add messages to the chat
-chat.addMessage("Hello, how can I assist you?");
-
-// Run the chat conversation
-const response = chat.run();
-
-// Process the response
-console.log(response);
+ChatGPTApp.setOpenAIAPIKey("Your-OpenAI-API-Key");
+ChatGPTApp.setGoogleAPIKey("Your-Google-API-Key"); // if you want to enable browsing
 ```
 
-## ChatGPTApp API
+## Creating a New Chat
 
-### ChatGPTApp()
+To start a new chat, call the `newChat()` method. This creates a new Chat instance.
 
-The `ChatGPTApp` object is the main entry point for using the ChatGPTApp library.
+```javascript
+let chat = ChatGPTApp.newChat();
+```
 
-#### Properties
+## Adding Messages to the Chat
 
-- `OpenAIKey`: A string representing the OpenAI API key.
-- `GoogleKey`: A string representing the Google API key. This is only if you want to enable browsing.
-- `BROWSING`: A boolean value indicating whether browsing is enabled.
+You can add messages to your chat using the `addMessage()` method. Messages can be from the user or the system.
 
-### ChatGPTApp.Chat()
+```javascript
+chat.addMessage("Hello, how are you?");
+chat.addMessage("Answer to the user in a professional way.", true);
+```
 
-The `Chat` class represents a chat conversation.
+## Adding a Function to the Chat
 
-#### Methods
+The `newFunction()` method allows you to create a new Function instance. You can then add this function to your chat using the `addFunction()` method.
 
-- `addMessage(messageContent: string, system?: boolean): Chat`: Adds a message to the chat. The `messageContent` parameter is a string representing the content of the message. The `system` parameter is an optional boolean value indicating if the message is from the system. Returns the current `Chat` instance.
-- `addFunction(functionObject: FunctionObject): Chat`: Adds a function to the chat. The `functionObject` parameter is an instance of the `FunctionObject` class. Returns the current `Chat` instance.
-- `getMessages(): string[]`: Returns an array of strings representing the messages in the chat.
-- `getFunctions(): FunctionObject[]`: Returns an array of `FunctionObject` instances representing the functions in the chat.
-- `enableBrowsing(bool: boolean): Chat`: Enables or disables browsing in the chat. The `bool` parameter is a boolean value indicating whether browsing should be enabled. Returns the current `Chat` instance.
-- `run(advancedParametersObject?: object): { functionName: string, functionArgs: JSON }`: Starts the chat conversation and returns the function called by the model, if any. The `advancedParametersObject` parameter is an optional object for advanced settings and specific usage only. Returns an object with the name of the function (`functionName`) and the arguments of the function (`functionArgs`).
+```javascript
+let functionObject = ChatGPTApp.newFunction()
+  .setName("myFunction")
+  .setDescription("This is a test function.")
+  .addParameter("arg1", "string", "This is the first argument.");
 
-### ChatGPTApp.FunctionObject()
+chat.addFunction(functionObject);
+```
 
-The `FunctionObject` class represents a function known by the function calling model.
+## Enabling Browsing
 
-#### Methods
+If you want to allow the model to perform web searches and fetch web pages, you can enable browsing.
 
-- `setName(newName: string): FunctionObject`: Sets the name for the function. Returns the current `FunctionObject` instance.
-- `setDescription(newDescription: string): FunctionObject`: Sets the description for the function. Returns the current `FunctionObject` instance.
-- `endWithResult(bool: boolean): FunctionObject`: Sets whether the conversation should automatically end when this function is called. Returns the current `FunctionObject` instance.
-- `addParameter(name: string, newType: string, description: string, isOptional?: boolean): FunctionObject`: Adds a property (argument) to the function. The `name` parameter is the property name, `newType` is the property type, `description
+```javascript
+chat.enableBrowsing(true);
+```
 
-is the property description, and `isOptional` is an optional boolean value indicating if the argument is required. Returns the current `FunctionObject` instance.
-- `onlyReturnArguments(bool: boolean): FunctionObject`: Sets whether the conversation should automatically end when this function is called and return only the arguments in a stringified JSON object. Returns the current `FunctionObject` instance.
-- `toJSON(): object`: Returns a JSON representation of the function.
+## Running the Chat
+
+Once you have set up your chat, you can start the conversation by calling the `run()` method.
+
+```javascript
+let response = chat.run();
+```
+
+## Function Object
+
+A `FunctionObject` represents a function that can be called by the chat.
+
+Creating a function object and setting its name to the name of an actual function you have in your script will permit the library to call your real function.
+
+### `setName(name)`
+
+Sets the name of the function.
+
+### `setDescription(description)`
+
+Sets the description of the function.
+
+### `addParameter(name, type, description, [isOptional])`
+
+Adds a parameter to the function. Parameters are required by default. Set 'isOptional' to true to make a parameter optional.
+
+### `endWithResult(bool)`
+
+If enabled, the conversation with the chat will automatically end after this function is executed.
+
+### `onlyReturnArguments(bool)`
+
+If enabled, the conversation will automatically end when this function is called and the chat will return the arguments in a stringified JSON object.
+
+### `toJSON()`
+
+Returns a JSON representation of the function object.
+
+## Chat
+
+A `Chat` represents a conversation with the chat.
+
+### `addMessage(messageContent, [system])`
+
+Add a message to the chat. If `system` is true, the message is from the system, else it's from the user.
+
+### `addFunction(functionObject)`
+
+Add a function to the chat.
+
+### `enableBrowsing(bool)`
+
+Enable the chat to use a Google search engine to browse the web.
+
+### `run([advancedParametersObject])`
+
+Start the chat conversation. It sends all your messages and any added function to the chat GPT. It will return the last chat answer.
+
+Supported attributes for the advanced parameters : (see openAI documentation for more info)
+
+```javascript
+advancedParametersObject = {
+	temperature: temperature, 
+	model: model,
+	function_call: function_call
+}
+```
+
+## Note
+
+If you wish to disable the library logs and keep only your own, call `disableLogs()`:
+
+```javascript
+ChatGPTApp.disableLogs();
+```
+
+This can be useful for keeping your logs clean and specific to your application.
 
 ## Examples
 
-### Example 1: Adding Messages and Running the Chat Conversation
+### Example 1 : a simple chat gpt request 
 
 ```javascript
-const chatGPT = ChatGPTApp();
+ ChatGPTApp.setOpenAIAPIKey(OPEN_AI_API_KEY);
 
-const chat = chatGPT.Chat();
+  const chat = ChatGPTApp.newChat();
+  chat.addMessage("What are the steps to add an external library to my Google Apps Script project?");
 
-// Add messages to the chat
-chat.addMessage("Hello, how can I assist you?");
-chat.addMessage("What's the weather like today?");
-
-// Run the chat conversation
-const response = chat.run();
-
-console.log(response);
+  const chatAnswer = chat.run();
+  Logger.log(chatAnswer);
 ```
 
-### Example 2: Adding Functions and Running the Chat Conversation
+
+### Example 2 : automatically create a draft reply for the last email in Gmail inbox
 
 ```javascript
-const chatGPT = ChatGPTApp();
+ ChatGPTApp.setOpenAIAPIKey(OPEN_AI_API_KEY);
+  const chat = ChatGPTApp.newChat();
 
-const chat = chatGPT.Chat();
+  // Fonction calling : rédaction automatique de brouillons pour les mails gmails 
 
-// Create a function object
-const calculateFunction = new chatGPT.FunctionObject()
-  .setName("calculate")
-  .setDescription("Perform a calculation")
-  .addParameter("expression", "string", "The mathematical expression to calculate.");
+  var getLatestThreadFunction = ChatGPTApp.newFunction()
+    .setName("getLatestThread")
+    .setDescription("Retrieve information from the last message received.");
 
-// Add the function to the chat
-chat.addFunction(calculateFunction);
+    var createDraftResponseFunction = ChatGPTApp.newFunction()
+    .setName("createDraftResponse")
+    .setDescription("Create a draft response.")
+    .addParameter("threadId", "string", "the ID of the thread to retrieve")
+    .addParameter("body", "string", "the body of the email in plain text");
 
-// Add messages to the chat
-chat.addMessage("Hello, how can I assist you?");
-chat.addMessage("Please calculate the result of '2 + 2'.");
+  var resp = ChatGPTApp.newChat()
+    .addMessage("You are an assistant managing my Gmail inbox.", true)
+    .addMessage("Retrieve the latest message I received and draft a response.")
+    .addFunction(getLatestThreadFunction)
+    .addFunction(createDraftResponseFunction)
+    .run();
 
-// Run the chat conversation
-const response = chat.run();
-
-console.log(response);
-
+  console.log(resp);
 ```
 
-## Notes
+### Example 3 : use case for onlyReturnArgument()
 
-- Ensure that you have a valid OpenAI API key and Google API key before using the library.
-- Make sure to enable browsing if you need to perform web searches.
-- The library is designed to work with the ChatGPT model and the function calling model. Ensure that you have the appropriate models enabled in your OpenAI account.
+```javascript
+const ticket = "Hello, could you check the status of my subscription under customer@example.com";
+
+  chat.addMessage("You just received this ticket : " + ticket);
+  chat.addMessage("What's the customer email address ? You will give it to me using the function getEmailAddress.");
+
+  const myFunction = ChatGPTApp.newFunction() // in this example, getEmailAddress is not actually a real function in your script
+    .setName("getEmailAddress")
+    .setDescription("To give the user an email address")
+    .addParameter("emailAddress", "string", "the email address")
+    .onlyReturnArguments(true) // you will get your parameters in a json object
+
+  chat.addFunction(myFunction);
+
+  const chatAnswer = chat.run();
+  Logger.log(chatAnswer["emailAddress"]); // the name of the parameter of your "fake" function
+
+  // output : 	"customer@example.com"
+```
+
+### Example 4 : browsing
+
+```javascript
+ const message = "You're a google support agent, a customer is asking you how to install a library he found on github in a google appscript project."
+
+ const chat = ChatGPTApp.newChat();
+  chat.addMessage(message);
+  chat.addMessage("Browse this website to answer : https://developers.google.com/apps-script", true)
+  chat.enableBrowsing(true);
+
+ const chatAnswer = chat.run();
+ Logger.log(chatAnswer);
+```

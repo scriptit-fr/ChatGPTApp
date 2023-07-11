@@ -21,28 +21,28 @@ const ChatGPTApp = (function () {
 
       /**
        * Sets the name of a function.
-       * @param {string} newName - The name to set for the function.
+       * @param {string} nameOfYourFunction - The name to set for the function.
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.setName = function (newName) {
-        name = newName;
+      this.setName = function (nameOfYourFunction) {
+        name = nameOfYourFunction;
         return this;
       };
 
       /**
-       * Sets the description for a function.
-       * @param {string} description - The description to set for the function.
+       * Sets the description of a function.
+       * @param {string} descriptionOfYourFunction - The description to set for the function.
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.setDescription = function (description) {
-        description = description;
+      this.setDescription = function (descriptionOfYourFunction) {
+        description = descriptionOfYourFunction;
         return this;
       };
 
       /**
        * OPTIONAL
-       * If enabled, the conversation will automatically end when this function is called.
-       * Default : false
+       * If enabled, the conversation with the chat will automatically end when this function is called.
+       * Default : false, eg the function is sent to the chat that will decide what the next action shoud be accordingly. 
        * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
        * @returns {FunctionObject} - The current Function instance.
        */
@@ -54,8 +54,7 @@ const ChatGPTApp = (function () {
       }
 
       /**
-       * Adds a property (arg) to the function.
-       * 
+       * Adds a property (an argument) to the function.
        * Note: Parameters are required by default. Set 'isOptional' to true to make a parameter optional.
        *
        * @param {string} name - The property name.
@@ -100,12 +99,12 @@ const ChatGPTApp = (function () {
       }
 
       /**
-        * OPTIONAL
-        * If enabled, the conversation will automatically end when this function is called and the chat will return the arguments in a stringified JSON object.
-        * Default : false
-        * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
-        * @returns {FunctionObject} - The current Function instance.
-        */
+      * OPTIONAL
+      * If enabled, the conversation will automatically end when this function is called and the chat will return the arguments in a stringified JSON object.
+      * Default : false
+      * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
+      * @returns {FunctionObject} - The current Function instance.
+      */
       this.onlyReturnArguments = function (bool) {
         if (bool) {
           onlyArgs = true;
@@ -199,6 +198,13 @@ const ChatGPTApp = (function () {
         return JSON.stringify(functions);
       };
 
+      /**
+       * OPTIONAL
+       * 
+       * Enable the chat to use a google serach engine to browse the web.
+       * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
+       * @returns {Chat} - The current Chat instance.
+       */
       this.enableBrowsing = function (bool) {
         if (bool) {
           browsing = true
@@ -208,7 +214,8 @@ const ChatGPTApp = (function () {
 
       /**
        * Start the chat conversation.
-       * Will return the chat answer.
+       * Sends all your messages and eventual function to chat GPT.
+       * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
        * @param {object} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {string} - the last message of the chat 
@@ -587,14 +594,25 @@ const ChatGPTApp = (function () {
       return new FunctionObject();
     },
 
+    /**
+     * Mandatory
+     * @param {string} apiKey - Your Open AI API key.
+     */
     setOpenAIAPIKey: function (apiKey) {
       OpenAIKey = apiKey;
     },
 
+    /**
+     * If you want to enable browsing
+     * @param {string} apiKey - Your Google API key.
+     */
     setGoogleAPIKey: function (apiKey) {
       GoogleCustomSearchAPIKey = apiKey;
     },
 
+    /**
+     * If you only want to keep your own logs and disable those of the library
+     */
     disableLogs: function () {
       ENABLE_LOGS = false;
     }

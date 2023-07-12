@@ -163,26 +163,26 @@ This can be useful for keeping your logs clean and specific to your application.
 ```javascript
  ChatGPTApp.setOpenAIAPIKey(OPEN_AI_API_KEY);
 
-  const chat = ChatGPTApp.newChat();
-  chat.addMessage("What are the steps to add an external library to my Google Apps Script project?");
+ const chat = ChatGPTApp.newChat();
+ chat.addMessage("What are the steps to add an external library to my Google Apps Script project?");
 
-  const chatAnswer = chat.run();
-  Logger.log(chatAnswer);
+ const chatAnswer = chat.run();
+ Logger.log(chatAnswer);
 ```
 
 ### Example 2 : automatically create a draft reply for the last email in Gmail inbox
 
 ```javascript
  ChatGPTApp.setOpenAIAPIKey(OPEN_AI_API_KEY);
-  const chat = ChatGPTApp.newChat();
+ const chat = ChatGPTApp.newChat();
 
-  // Fonction calling : rédaction automatique de brouillons pour les mails gmails 
+ // Fonction calling : rédaction automatique de brouillons pour les mails gmails 
 
-  var getLatestThreadFunction = ChatGPTApp.newFunction()
+ var getLatestThreadFunction = ChatGPTApp.newFunction()
     .setName("getLatestThread")
     .setDescription("Retrieve information from the last message received.");
 
-    var createDraftResponseFunction = ChatGPTApp.newFunction()
+ var createDraftResponseFunction = ChatGPTApp.newFunction()
     .setName("createDraftResponse")
     .setDescription("Create a draft response.")
     .addParameter("threadId", "string", "the ID of the thread to retrieve")
@@ -226,9 +226,9 @@ const ticket = "Hello, could you check the status of my subscription under custo
  const message = "You're a google support agent, a customer is asking you how to install a library he found on github in a google appscript project."
 
  const chat = ChatGPTApp.newChat();
-  chat.addMessage(message);
-  chat.addMessage("Browse this website to answer : https://developers.google.com/apps-script", true)
-  chat.enableBrowsing(true);
+ chat.addMessage(message);
+ chat.addMessage("Browse this website to answer : https://developers.google.com/apps-script", true)
+ chat.enableBrowsing(true);
 
  const chatAnswer = chat.run();
  Logger.log(chatAnswer);

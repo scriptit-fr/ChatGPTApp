@@ -217,7 +217,7 @@ const ChatGPTApp = (function () {
        * Sends all your messages and eventual function to chat GPT.
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {{model: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "text-davinci-003" | "text-davinci-002" | "code-davinci-002" | "text-curie-001" | "text-babbage-001" | "text-ada-001" | "davinci" | "curie" | "babbage" | "ada" , temperature: number, function_calling: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {{model: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "text-davinci-003" | "text-davinci-002" | "code-davinci-002" | "text-curie-001" | "text-babbage-001" | "text-ada-001" | "davinci" | "curie" | "babbage" | "ada" , temperature: number, function_call: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {string} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
@@ -246,9 +246,9 @@ const ChatGPTApp = (function () {
 
         let functionCalling = false;
         if (advancedParametersObject) {
-          if (advancedParametersObject["function_calling"]) { // the user has set a specific function to call
+          if (advancedParametersObject["function_call"]) { // the user has set a specific function to call
             payload.functions = functions;
-            let function_calling = { name: advancedParametersObject.function_calling };
+            let function_calling = { name: advancedParametersObject.function_call };
             payload.function_call = function_calling;
             functionCalling = true;
           }

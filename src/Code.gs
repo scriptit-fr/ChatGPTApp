@@ -376,7 +376,7 @@ const ChatGPTApp = (function () {
               }
               if (functionName !== "webSearch" && functionName !== "urlFetch") {
                 if (ENABLE_LOGS) {
-                  console.log("Function calling called " + functionName);
+                  console.log(functionName + "() called by OpenAI.");
                 }
               } else if (functionName == "webSearch") {
                 payload.function_call = { name: "urlFetch" };
@@ -412,12 +412,6 @@ const ChatGPTApp = (function () {
 
           }
           else {
-            // no function has been called 
-            if (functions.length > 0) {
-              if (ENABLE_LOGS) {
-                console.log("No function has been called by the model");
-              }
-            }
             // if no function has been found, stop here
             return responseMessage.content;
           }

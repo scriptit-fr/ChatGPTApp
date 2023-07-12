@@ -144,7 +144,7 @@ advancedParametersObject = {
 
 **Model** : The OpenAI API is powered by a diverse [set of models](https://platform.openai.com/docs/models/overview) with different capabilities and price points. 
 
-**Function_call** : If you want to force the model to call a specific function you can do so by setting `function_call: {"name": "<insert-function-name>"}`.
+**Function_call** : If you want to force the model to call a specific function you can do so by setting `function_call: "<insert-function-name>"`.
 
 ## Note
 

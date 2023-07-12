@@ -274,8 +274,6 @@ const ChatGPTApp = (function () {
           }
         }
 
-        console.log(payload)
-
         let maxAttempts = 5;
         let attempt = 0;
         let success = false;

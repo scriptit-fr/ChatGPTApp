@@ -242,12 +242,17 @@ const ChatGPTApp = (function () {
 
         let functionCalling = false;
 
-        if (browsing && messages[messages.length - 1].role !== "function") {
-          messages.push({ role: "system", content: "You are able to perform queries on Google search using the function webSearch, then open results and get the content of a web page using the function urlFetch." });
-          functions.push(webSearchFunction);
-          functions.push(urlFetchFunction);
-          let function_calling = { name: "webSearch" };
-          payload.function_call = function_calling;
+        if (browsing) {
+          if (messages[messages.length - 1].role !== "function") {
+            messages.push({ role: "system", content: "You are able to perform queries on Google search using the function webSearch, then open results and get the content of a web page using the function urlFetch." });
+            functions.push(webSearchFunction);
+            functions.push(urlFetchFunction);
+            let function_calling = { name: "webSearch" };
+            payload.function_call = function_calling;
+          } else if (messages[messages.length - 1].role == "function" && messages[messages.length - 1].name === "webSearch") {
+            let function_calling = { name: "urlFetch" };
+            payload.function_call = function_calling;
+          }
         }
 
         if (functions.length >> 0) { // the user has added functions, we enable function calling
@@ -263,13 +268,13 @@ const ChatGPTApp = (function () {
             payload.function_call = 'auto';
           }
 
-          if (advancedParametersObject && advancedParametersObject['function_call']) { // the user has set a specific function to call
+          if (advancedParametersObject && advancedParametersObject['function_call'] && JSON.stringify(payload.function_call) !== JSON.stringify({ name: "urlFetch" })) { // the user has set a specific function to call
             let function_calling = { name: advancedParametersObject.function_call };
             payload.function_call = function_calling;
           }
         }
 
-
+        console.log(payload)
 
         let maxAttempts = 5;
         let attempt = 0;
@@ -375,8 +380,7 @@ const ChatGPTApp = (function () {
                 }
               } else if (functionName == "webSearch") {
                 payload.function_call = { name: "urlFetch" };
-              }
-              else if (functionName == "urlFetch") {
+              } else if (functionName == "urlFetch") {
                 if (!functionResponse) {
                   if (ENABLE_LOGS) {
                     console.log("The website didn't respond, going back to the results page");
@@ -404,7 +408,6 @@ const ChatGPTApp = (function () {
                 }
               )
             }
-
             return this.run();
 
           }

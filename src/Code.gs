@@ -254,7 +254,7 @@ const ChatGPTApp = (function () {
         if (functions.length >> 0) { // the user has added functions, we enable function calling
           functionCalling = true;
           payload.functions = functions;
-          
+
           if (!payload['function_call']) {
             payload.function_call = 'auto';
           }          
@@ -369,7 +369,7 @@ const ChatGPTApp = (function () {
                 if (ENABLE_LOGS) {
                   console.log("Function calling called " + functionName);
                 }
-              } else if (functionName == "webSearch" && JSON.stringify(payload.function_call) == JSON.stringify({name: "webSearch"})) {
+              } else if (functionName == "webSearch") {
                 payload.function_call = {name: "urlFetch"};
               }
               else if (functionName == "urlFetch") {
@@ -384,6 +384,7 @@ const ChatGPTApp = (function () {
                   messages[messages.length - 1].content = JSON.stringify(newSearchResult);
                   return this.run();
                 }
+                payload.function_call = "auto";
               }
               // Inform the chat that the function has been called
               messages.push({

@@ -217,16 +217,19 @@ const ChatGPTApp = (function () {
        * Sends all your messages and eventual function to chat GPT.
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {{model: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "text-davinci-003" | "text-davinci-002" | "code-davinci-002" | "text-curie-001" | "text-babbage-001" | "text-ada-001" | "davinci" | "curie" | "babbage" | "ada" , temperature: number, function_call: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {{model: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k", temperature: number, maxToken: number, function_call: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {string} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
         if (advancedParametersObject) {
-          if (advancedParametersObject["model"]) {
+          if (advancedParametersObject[model]) {
             model = advancedParametersObject.model;
           }
-          if (advancedParametersObject["temperature"]) {
+          if (advancedParametersObject[temperature]) {
             temperature = advancedParametersObject.temperature;
+          }
+          if (advancedParametersObject[maxToken]) {
+            maxToken = advancedParametersObject.maxToken;
           }
         }
 
@@ -246,7 +249,7 @@ const ChatGPTApp = (function () {
 
         let functionCalling = false;
         if (advancedParametersObject) {
-          if (advancedParametersObject["function_call"]) { // the user has set a specific function to call
+          if (advancedParametersObject['function_call']) { // the user has set a specific function to call
             payload.functions = functions;
             let function_calling = { name: advancedParametersObject.function_call };
             payload.function_call = function_calling;
@@ -284,10 +287,7 @@ const ChatGPTApp = (function () {
             responseMessage = JSON.parse(response.getContentText()).choices[0].message;
             endReason = JSON.parse(response.getContentText()).choices[0].finish_reason;
             if (endReason == "length") {
-              console.log({
-                message: "WARNING : Answer has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property",
-                currentMaxToken: maxToken
-              });
+              console.log("WARNING : Answer has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property");
             }
             success = true;
           } else if (responseCode === 503) {
@@ -307,10 +307,7 @@ const ChatGPTApp = (function () {
           return "request failed";
         }
 
-        // console.log({
-        //   message: 'Got response from open AI API',
-        //   response: JSON.stringify(responseMessage)
-        // });
+        // console.log('Got response from open AI API');
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
@@ -343,23 +340,14 @@ const ChatGPTApp = (function () {
                 }
               }
               if (ENABLE_LOGS) {
-                console.log({
-                  message: "Conversation stopped because end function has been called",
-                  functionName: functionName,
-                  functionArgs: functionArgs,
-                  functionResponse: functionResponse
-                });
+                console.log("Conversation stopped because end function has been called");
               }
               return responseMessage.content;;
 
 
             } else if (onlyReturnArguments) {
               if (ENABLE_LOGS) {
-                console.log({
-                  message: "Conversation stopped because argument return has been enabled - No function has been called",
-                  functionName: functionName,
-                  functionArgs: functionArgs,
-                });
+                console.log("Conversation stopped because argument return has been enabled - No function has been called");
               }
               return functionArgs;
             } else {
@@ -373,10 +361,7 @@ const ChatGPTApp = (function () {
               }
               if (functionName !== "webSearch" && functionName !== "urlFetch") {
                 if (ENABLE_LOGS) {
-                  console.log({
-                    message: "Function calling called " + functionName,
-                    arguments: functionArgs,
-                  });
+                  console.log("Function calling called " + functionName);
                 }
               }
               else if (functionName == "urlFetch") {
@@ -414,9 +399,7 @@ const ChatGPTApp = (function () {
             // no function has been called 
             if (functions.length > 0) {
               if (ENABLE_LOGS) {
-                console.log({
-                  message: "No function has been called by the model",
-                });
+                console.log("No function has been called by the model");
               }
             }
             // if no function has been found, stop here

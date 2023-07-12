@@ -550,8 +550,7 @@ const ChatGPTApp = (function () {
     let response = UrlFetchApp.fetch(url, options);
     if (response.getResponseCode() == 200) {
       let pageContent = response.getContentText();
-      pageContent = sanitizeHtml(pageContent)
-      console.log(pageContent)
+      pageContent = sanitizeHtml(pageContent);
       return pageContent;
 
     } else {

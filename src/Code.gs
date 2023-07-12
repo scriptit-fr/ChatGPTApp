@@ -217,7 +217,7 @@ const ChatGPTApp = (function () {
        * Sends all your messages and eventual function to chat GPT.
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {{model: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k", temperature: number, maxToken: number, function_call: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {{model?: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k", temperature?: number, maxToken?: number, function_call?: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {string} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {

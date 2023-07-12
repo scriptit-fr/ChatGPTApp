@@ -9,13 +9,13 @@ const ChatGPTApp = (function () {
    * Class representing a function known by function calling model
    */
   class FunctionObject {
+
     constructor() {
       let name = '';
       let description = '';
       let properties = {};
       let required = [];
       let argumentsInRightOrder = [];
-      let maximumNumberOfCalls = 1;
       let endingFunction = false;
       let onlyArgs = false;
 
@@ -126,7 +126,6 @@ const ChatGPTApp = (function () {
             required: required
           },
           argumentsInRightOrder: argumentsInRightOrder,
-          maximumNumberOfCalls: maximumNumberOfCalls,
           endingFunction: endingFunction,
           onlyArgs: onlyArgs
         };
@@ -253,19 +252,24 @@ const ChatGPTApp = (function () {
 
         if (functions.length >> 0) { // the user has added functions, we enable function calling
           functionCalling = true;
-          payload.functions = functions;
+          let payloadFunctions = Object.keys(functions).map(f => ({
+            name: functions[f].toJSON().name,
+            description: functions[f].toJSON().description,
+            parameters: functions[f].toJSON().parameters
+          }));
+          payload.functions = payloadFunctions;
 
           if (!payload['function_call']) {
             payload.function_call = 'auto';
-          }          
-      
+          }
+
           if (advancedParametersObject && advancedParametersObject['function_call']) { // the user has set a specific function to call
             let function_calling = { name: advancedParametersObject.function_call };
             payload.function_call = function_calling;
           }
         }
 
-        
+
 
         let maxAttempts = 5;
         let attempt = 0;
@@ -370,7 +374,7 @@ const ChatGPTApp = (function () {
                   console.log("Function calling called " + functionName);
                 }
               } else if (functionName == "webSearch") {
-                payload.function_call = {name: "urlFetch"};
+                payload.function_call = { name: "urlFetch" };
               }
               else if (functionName == "urlFetch") {
                 if (!functionResponse) {

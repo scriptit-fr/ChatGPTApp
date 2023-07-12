@@ -1,18 +1,34 @@
-
 # ChatGPTApp Google Apps Script Library Documentation
 
 The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT into your Google Apps Script projects. It allows for structured conversation, function calling and web browsing capabilities.
 
+## Table of Contents
+
+- [Setup](#setup)
+- [Creating a New Chat](#creating-a-new-chat)
+- [Adding Messages to the Chat](#adding-messages-to-the-chat)
+- [Adding a Function to the Chat](#adding-a-function-to-the-chat)
+- [Enabling Browsing](#enabling-browsing)
+- [Running the Chat](#running-the-chat)
+- [Function Object](#function-object)
+- [Chat](#chat)
+- [Note](#note)
+- [Examples](#examples)
+
 ## Setup
 
-To use the ChatGPTApp library, you first need to include the library code in your project. You then need to provide your OpenAI API key via `setOpenAIAPIKey()`. 
+To use the ChatGPTApp library, you first need to include the library code in your project. You then need to provide your OpenAI API key via `setOpenAIAPIKey()`.
 
 If you wish to enable browsing capabilities, you will also need to provide your Google API key via `setGoogleAPIKey()`.
 
 ```javascript
 ChatGPTApp.setOpenAIAPIKey("Your-OpenAI-API-Key");
-ChatGPTApp.setGoogleAPIKey("Your-Google-API-Key"); // if you want to enable browsing
+ChatGPTApp.setGoogleSearchAPIKey("Your-Google-API-Key"); // if you want to enable browsing
 ```
+
+To get an OpenAI API key, visit the OpenAI [website](https://openai.com/), create an account, and navigate to the API section to generate your API key.
+
+To get a Google Custom Search API key (free) you can visit this [page](https://developers.google.com/custom-search/v1/introduction).
 
 ## Creating a New Chat
 
@@ -43,6 +59,10 @@ let functionObject = ChatGPTApp.newFunction()
 
 chat.addFunction(functionObject);
 ```
+
+From the moment that you add a function to chat, we will use Open AI's function calling features. 
+
+For more information : [https://platform.openai.com/docs/guides/gpt/function-calling](https://platform.openai.com/docs/guides/gpt/function-calling) 
 
 ## Enabling Browsing
 
@@ -110,7 +130,7 @@ Enable the chat to use a Google search engine to browse the web.
 
 Start the chat conversation. It sends all your messages and any added function to the chat GPT. It will return the last chat answer.
 
-Supported attributes for the advanced parameters : (see openAI documentation for more info)
+Supported attributes for the advanced parameters :
 
 ```javascript
 advancedParametersObject = {
@@ -119,6 +139,12 @@ advancedParametersObject = {
 	function_call: function_call
 }
 ```
+
+**Temperature** : Lower values for temperature result in more consistent outputs, while higher values generate more diverse and creative results. Select a temperature value based on the desired trade-off between coherence and creativity for your specific application.
+
+**Model** : The OpenAI API is powered by a diverse [set of models](https://platform.openai.com/docs/models/overview) with different capabilities and price points. 
+
+**Function_call** : If you want to force the model to call a specific function you can do so by setting `function_call: {"name": "<insert-function-name>"}`.
 
 ## Note
 
@@ -132,7 +158,7 @@ This can be useful for keeping your logs clean and specific to your application.
 
 ## Examples
 
-### Example 1 : a simple chat gpt request 
+### Example 1 : a simple chat gpt request
 
 ```javascript
  ChatGPTApp.setOpenAIAPIKey(OPEN_AI_API_KEY);
@@ -143,7 +169,6 @@ This can be useful for keeping your logs clean and specific to your application.
   const chatAnswer = chat.run();
   Logger.log(chatAnswer);
 ```
-
 
 ### Example 2 : automatically create a draft reply for the last email in Gmail inbox
 

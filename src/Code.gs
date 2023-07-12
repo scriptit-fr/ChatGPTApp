@@ -217,15 +217,15 @@ const ChatGPTApp = (function () {
        * Sends all your messages and eventual function to chat GPT.
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {object} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {{model: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "text-davinci-003" | "text-davinci-002" | "code-davinci-002" | "text-curie-001" | "text-babbage-001" | "text-ada-001" | "davinci" | "curie" | "babbage" | "ada" , temperature: number, function_calling: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {string} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
         if (advancedParametersObject) {
-          if (advancedParametersObject.hasOwnProperty("model")) {
+          if (advancedParametersObject["model"]) {
             model = advancedParametersObject.model;
           }
-          if (advancedParametersObject.hasOwnProperty("temperature")) {
+          if (advancedParametersObject["temperature"]) {
             temperature = advancedParametersObject.temperature;
           }
         }
@@ -246,7 +246,7 @@ const ChatGPTApp = (function () {
 
         let functionCalling = false;
         if (advancedParametersObject) {
-          if (advancedParametersObject.hasOwnProperty("function_calling")) { // the user has set a specific function to call
+          if (advancedParametersObject["function_calling"]) { // the user has set a specific function to call
             payload.functions = functions;
             let function_calling = { name: advancedParametersObject.function_calling };
             payload.function_call = function_calling;
@@ -527,13 +527,19 @@ const ChatGPTApp = (function () {
   }
 
   function urlFetch(url) {
-    console.log("Clicked on a link");
+    console.log(`Clicked on link : ${url}`);
     const options = {
       'muteHttpExceptions': true
     }
-    let pageContent = UrlFetchApp.fetch(url, options).getContentText();
-    pageContent = sanitizeHtml(pageContent);
-    return pageContent;
+    let response = UrlFetchApp.fetch(url, options);
+    if (response.getResponseCode() == 200) {
+      let pageContent = response.getContentText();
+      pageContent = sanitizeHtml(pageContent);
+      return pageContent;
+    } else {
+      return null;
+    }
+
   }
 
   function sanitizeHtml(pageContent) {
@@ -606,7 +612,7 @@ const ChatGPTApp = (function () {
      * If you want to enable browsing
      * @param {string} apiKey - Your Google API key.
      */
-    setGoogleAPIKey: function (apiKey) {
+    setGoogleSearchAPIKey: function (apiKey) {
       GoogleCustomSearchAPIKey = apiKey;
     },
 

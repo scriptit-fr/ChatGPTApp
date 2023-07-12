@@ -234,6 +234,7 @@ const ChatGPTApp = (function () {
         }
 
         if (browsing && messages[messages.length - 1].role !== "function") {
+          console.log("In browsing loop")
           messages.push({ role: "system", content: "You are able to perform queries on Google search using the function webSearch, then open results and get the content of a web page using the function urlFetch." });
           functions.push(webSearchFunction);
           functions.push(urlFetchFunction);
@@ -248,17 +249,18 @@ const ChatGPTApp = (function () {
         };
 
         let functionCalling = false;
-        if (advancedParametersObject) {
-          if (advancedParametersObject['function_call']) { // the user has set a specific function to call
-            payload.functions = functions;
-            let function_calling = { name: advancedParametersObject.function_call };
-            payload.function_call = function_calling;
-            functionCalling = true;
-          }
-        } else if (functions.length >> 0) { // the user has added functions, we enable function calling
+        // if functions.lengt > 0 --> functionCalling = true
+        // if functionCalling --> payload.functions et payload.function_call = auto
+        // if en plus advancedParameters.function_call --> payload.function_call modifié
+
+        if (functions.length >> 0) { // the user has added functions, we enable function calling
           payload.functions = functions;
           payload.function_call = 'auto';
           functionCalling = true;
+          if (advancedParametersObject && advancedParametersObject['function_call']) { // the user has set a specific function to call
+            let function_calling = { name: advancedParametersObject.function_call };
+            payload.function_call = function_calling;
+          }
         }
 
         let maxAttempts = 5;
@@ -477,10 +479,7 @@ const ChatGPTApp = (function () {
         return parsedResponse;
       } catch (e) {
         // If parsing still fails, log the error and return null.
-        console.warn({
-          message: 'Error parsing corrected response: ' + e.message,
-          argumentJSON: response
-        });
+        console.warn('Error parsing corrected response: ' + e.message);
         return null;
       }
     }

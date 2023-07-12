@@ -1,3 +1,23 @@
+/*
+ ChatGPTApp
+ https://github.com/scriptit-fr/ChatGPTApp
+ 
+ Copyright (c) 2023 Guillemine Allavena - Romain Vialard
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+ 
+ http://www.apache.org/licenses/LICENSE-2.0
+ 
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ */
+
+
 const ChatGPTApp = (function () {
 
   let OpenAIKey = "";
@@ -221,13 +241,13 @@ const ChatGPTApp = (function () {
        */
       this.run = function (advancedParametersObject) {
         if (advancedParametersObject) {
-          if (advancedParametersObject[model]) {
+          if (advancedParametersObject.model) {
             model = advancedParametersObject.model;
           }
-          if (advancedParametersObject[temperature]) {
+          if (advancedParametersObject.temperature) {
             temperature = advancedParametersObject.temperature;
           }
-          if (advancedParametersObject[maxToken]) {
+          if (advancedParametersObject.maxToken) {
             maxToken = advancedParametersObject.maxToken;
           }
         }
@@ -264,11 +284,11 @@ const ChatGPTApp = (function () {
           }));
           payload.functions = payloadFunctions;
 
-          if (!payload['function_call']) {
+          if (!payload.function_call) {
             payload.function_call = 'auto';
           }
 
-          if (advancedParametersObject && advancedParametersObject['function_call'] && JSON.stringify(payload.function_call) !== JSON.stringify({ name: "urlFetch" })) { // the user has set a specific function to call
+          if (advancedParametersObject && advancedParametersObject.function_call && JSON.stringify(payload.function_call) !== JSON.stringify({ name: "urlFetch" })) { // the user has set a specific function to call
             let function_calling = { name: advancedParametersObject.function_call };
             payload.function_call = function_calling;
           }
@@ -388,7 +408,11 @@ const ChatGPTApp = (function () {
                     return obj.link !== functionArgs.url;
                   });
                   messages[messages.length - 1].content = JSON.stringify(newSearchResult);
-                  return this.run();
+                  if (advancedParametersObject) {
+                    return this.run(advancedParametersObject);
+                  } else {
+                    return this.run();
+                  }
                 }
                 payload.function_call = "auto";
               }
@@ -406,7 +430,11 @@ const ChatGPTApp = (function () {
                 }
               )
             }
-            return this.run();
+            if (advancedParametersObject) {
+              return this.run(advancedParametersObject);
+            } else {
+              return this.run();
+            }
 
           }
           else {
@@ -522,8 +550,10 @@ const ChatGPTApp = (function () {
     let response = UrlFetchApp.fetch(url, options);
     if (response.getResponseCode() == 200) {
       let pageContent = response.getContentText();
-      pageContent = sanitizeHtml(pageContent);
+      pageContent = sanitizeHtml(pageContent)
+      console.log(pageContent)
       return pageContent;
+
     } else {
       return null;
     }
@@ -568,6 +598,8 @@ const ChatGPTApp = (function () {
 
     return usefullContent;
   }
+
+
 
 
   return {

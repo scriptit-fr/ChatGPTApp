@@ -2,20 +2,34 @@
 
 The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT into your Google Apps Script projects. It allows for structured conversation, function calling and web browsing capabilities.
 
+
 ## Table of Contents
 
-- [Setup](#setup)
-- [Creating a New Chat](#creating-a-new-chat)
-- [Adding Messages to the Chat](#adding-messages-to-the-chat)
-- [Adding a Function to the Chat](#adding-a-function-to-the-chat)
-- [Enabling Browsing](#enabling-browsing)
-- [Running the Chat](#running-the-chat)
-- [Function Object](#function-object)
-- [Chat](#chat)
-- [Note](#note)
-- [Examples](#examples)
+###### How to use : 
 
-## Setup
+* [Setup](##setup)
+* [Create a New Chat](##creating-a-new-chat)
+* [Add Messages](##adding-messages-to-the-chat)
+* [Add Callable Functions](##adding-a-function-to-the-chat)
+* [Enable web browsing (optional)](##enabling-browsing)
+* [Run the Chat](##running-the-chat)
+
+###### Examples :
+
+ * [Send a prompt and get completion](###Example-1-:-Send-a-prompt-and-get-completion)
+ * [Ask Open AI to create a draft reply for the last email in Gmail inbox](###Example-2-:-Ask-Open-AI-to-create-a-draft-reply-for-the-last-email-in-gmail-inbox)
+ * [Retrieve structured data instead of raw text with onlyReturnArgument()](###Example-3-:-Retrieve-structured-data-instead-of-raw-text-with-onlyReturnArgument())
+ * [Use web browsing](###Example-3-:-Use-web-browsing)
+###### Reference :
+
+ * [Function Class](#function-object)
+ * [Chat Class](#chat)
+ * [Notes](#note)
+
+
+## How to use
+
+### Setup
 
 To use the ChatGPTApp library, you first need to include the library code in your project. You then need to provide your OpenAI API key via `setOpenAIAPIKey()`.
 
@@ -30,7 +44,7 @@ To get an OpenAI API key, visit the OpenAI [website](https://openai.com/), creat
 
 To get a Google Custom Search API key (free) you can visit this [page](https://developers.google.com/custom-search/v1/introduction).
 
-## Creating a New Chat
+### Create a New Chat
 
 To start a new chat, call the `newChat()` method. This creates a new Chat instance.
 
@@ -38,7 +52,7 @@ To start a new chat, call the `newChat()` method. This creates a new Chat instan
 let chat = ChatGPTApp.newChat();
 ```
 
-## Adding Messages to the Chat
+### Add Messages
 
 You can add messages to your chat using the `addMessage()` method. Messages can be from the user or the system.
 
@@ -47,7 +61,7 @@ chat.addMessage("Hello, how are you?");
 chat.addMessage("Answer to the user in a professional way.", true);
 ```
 
-## Adding a Function to the Chat
+### Add callable Function
 
 The `newFunction()` method allows you to create a new Function instance. You can then add this function to your chat using the `addFunction()` method.
 
@@ -60,11 +74,11 @@ let functionObject = ChatGPTApp.newFunction()
 chat.addFunction(functionObject);
 ```
 
-From the moment that you add a function to chat, we will use Open AI's function calling features. 
+From the moment that you add a function to chat, we will use Open AI's function calling features.
 
-For more information : [https://platform.openai.com/docs/guides/gpt/function-calling](https://platform.openai.com/docs/guides/gpt/function-calling) 
+For more information : [https://platform.openai.com/docs/guides/gpt/function-calling](https://platform.openai.com/docs/guides/gpt/function-calling)
 
-## Enabling Browsing
+### Enable web browsing (optionnal)
 
 If you want to allow the model to perform web searches and fetch web pages, you can enable browsing.
 
@@ -72,7 +86,7 @@ If you want to allow the model to perform web searches and fetch web pages, you 
 chat.enableBrowsing(true);
 ```
 
-## Running the Chat
+### Run the Chat
 
 Once you have set up your chat, you can start the conversation by calling the `run()` method.
 
@@ -80,85 +94,9 @@ Once you have set up your chat, you can start the conversation by calling the `r
 let response = chat.run();
 ```
 
-## Function Object
-
-A `FunctionObject` represents a function that can be called by the chat.
-
-Creating a function object and setting its name to the name of an actual function you have in your script will permit the library to call your real function.
-
-### `setName(name)`
-
-Sets the name of the function.
-
-### `setDescription(description)`
-
-Sets the description of the function.
-
-### `addParameter(name, type, description, [isOptional])`
-
-Adds a parameter to the function. Parameters are required by default. Set 'isOptional' to true to make a parameter optional.
-
-### `endWithResult(bool)`
-
-If enabled, the conversation with the chat will automatically end after this function is executed.
-
-### `onlyReturnArguments(bool)`
-
-If enabled, the conversation will automatically end when this function is called and the chat will return the arguments in a stringified JSON object.
-
-### `toJSON()`
-
-Returns a JSON representation of the function object.
-
-## Chat
-
-A `Chat` represents a conversation with the chat.
-
-### `addMessage(messageContent, [system])`
-
-Add a message to the chat. If `system` is true, the message is from the system, else it's from the user.
-
-### `addFunction(functionObject)`
-
-Add a function to the chat.
-
-### `enableBrowsing(bool)`
-
-Enable the chat to use a Google search engine to browse the web.
-
-### `run([advancedParametersObject])`
-
-Start the chat conversation. It sends all your messages and any added function to the chat GPT. It will return the last chat answer.
-
-Supported attributes for the advanced parameters :
-
-```javascript
-advancedParametersObject = {
-	temperature: temperature, 
-	model: model,
-	function_call: function_call
-}
-```
-
-**Temperature** : Lower values for temperature result in more consistent outputs, while higher values generate more diverse and creative results. Select a temperature value based on the desired trade-off between coherence and creativity for your specific application.
-
-**Model** : The OpenAI API is powered by a diverse [set of models](https://platform.openai.com/docs/models/overview) with different capabilities and price points. 
-
-**Function_call** : If you want to force the model to call a specific function you can do so by setting `function_call: "<insert-function-name>"`.
-
-## Note
-
-If you wish to disable the library logs and keep only your own, call `disableLogs()`:
-
-```javascript
-ChatGPTApp.disableLogs();
-```
-
-This can be useful for keeping your logs clean and specific to your application.
-
 ## Examples
 
-### Example 1 : a simple chat gpt request
+### Example 1 : Send a prompt and get completion
 
 ```javascript
  ChatGPTApp.setOpenAIAPIKey(OPEN_AI_API_KEY);
@@ -170,7 +108,7 @@ This can be useful for keeping your logs clean and specific to your application.
  Logger.log(chatAnswer);
 ```
 
-### Example 2 : automatically create a draft reply for the last email in Gmail inbox
+### Example 2 : Ask Open AI to create a draft reply for the last email in Gmail inbox
 
 ```javascript
  ChatGPTApp.setOpenAIAPIKey(OPEN_AI_API_KEY);
@@ -198,7 +136,7 @@ This can be useful for keeping your logs clean and specific to your application.
   console.log(resp);
 ```
 
-### Example 3 : use case for onlyReturnArgument()
+### Example 3 : Retrieve structured data instead of raw text with onlyReturnArgument()
 
 ```javascript
 const ticket = "Hello, could you check the status of my subscription under customer@example.com";
@@ -220,7 +158,7 @@ const ticket = "Hello, could you check the status of my subscription under custo
   // output : 	"customer@example.com"
 ```
 
-### Example 4 : browsing
+### Example 4 : Use web browsing
 
 ```javascript
  const message = "You're a google support agent, a customer is asking you how to install a library he found on github in a google appscript project."
@@ -233,3 +171,81 @@ const ticket = "Hello, could you check the status of my subscription under custo
  const chatAnswer = chat.run();
  Logger.log(chatAnswer);
 ```
+
+## Reference
+
+### Function Object
+
+A `FunctionObject` represents a function that can be called by the chat.
+
+Creating a function object and setting its name to the name of an actual function you have in your script will permit the library to call your real function.
+
+#### `setName(name)`
+
+Sets the name of the function.
+
+#### `setDescription(description)`
+
+Sets the description of the function.
+
+#### `addParameter(name, type, description, [isOptional])`
+
+Adds a parameter to the function. Parameters are required by default. Set 'isOptional' to true to make a parameter optional.
+
+#### `endWithResult(bool)`
+
+If enabled, the conversation with the chat will automatically end after this function is executed.
+
+#### `onlyReturnArguments(bool)`
+
+If enabled, the conversation will automatically end when this function is called and the chat will return the arguments in a stringified JSON object.
+
+#### `toJSON()`
+
+Returns a JSON representation of the function object.
+
+### Chat
+
+A `Chat` represents a conversation with the chat.
+
+#### `addMessage(messageContent, [system])`
+
+Add a message to the chat. If `system` is true, the message is from the system, else it's from the user.
+
+#### `addFunction(functionObject)`
+
+Add a function to the chat.
+
+#### `enableBrowsing(bool)`
+
+Enable the chat to use a Google search engine to browse the web.
+
+#### `run([advancedParametersObject])`
+
+Start the chat conversation. It sends all your messages and any added function to the chat GPT. It will return the last chat answer.
+
+Supported attributes for the advanced parameters :
+
+```javascript
+advancedParametersObject = {
+	temperature: temperature, 
+	model: model,
+	function_call: function_call
+}
+```
+
+**Temperature** : Lower values for temperature result in more consistent outputs, while higher values generate more diverse and creative results. Select a temperature value based on the desired trade-off between coherence and creativity for your specific application.
+
+**Model** : The OpenAI API is powered by a diverse [set of models](https://platform.openai.com/docs/models/overview) with different capabilities and price points.
+
+**Function_call** : If you want to force the model to call a specific function you can do so by setting `function_call: "<insert-function-name>"`.
+
+### Note
+
+If you wish to disable the library logs and keep only your own, call `disableLogs()`:
+
+```javascript
+ChatGPTApp.disableLogs();
+```
+
+This can be useful for keeping your logs clean and specific to your application.

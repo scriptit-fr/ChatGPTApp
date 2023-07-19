@@ -115,8 +115,6 @@ let response = chat.run();
  ChatGPTApp.setOpenAIAPIKey(OPEN_AI_API_KEY);
  const chat = ChatGPTApp.newChat();
 
- // Fonction calling : rédaction automatique de brouillons pour les mails gmails 
-
  var getLatestThreadFunction = ChatGPTApp.newFunction()
     .setName("getLatestThread")
     .setDescription("Retrieve information from the last message received.");

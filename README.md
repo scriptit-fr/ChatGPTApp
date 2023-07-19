@@ -7,12 +7,12 @@ The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT int
 
 ###### How to use : 
 
-* [Setup](##setup)
-* [Create a New Chat](##creating-a-new-chat)
-* [Add Messages](##adding-messages-to-the-chat)
-* [Add Callable Functions](##adding-a-function-to-the-chat)
-* [Enable web browsing (optional)](##enabling-browsing)
-* [Run the Chat](##running-the-chat)
+* [Setup](###setup)
+* [Create a New Chat](###creating-a-new-chat)
+* [Add Messages](###adding-messages-to-the-chat)
+* [Add Callable Functions](###adding-a-function-to-the-chat)
+* [Enable web browsing (optional)](###enabling-browsing)
+* [Run the Chat](###running-the-chat)
 
 ###### Examples :
 
@@ -22,9 +22,9 @@ The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT int
  * [Use web browsing](###Example-3-:-Use-web-browsing)
 ###### Reference :
 
- * [Function Class](#function-object)
- * [Chat Class](#chat)
- * [Notes](#note)
+ * [Function Class](###function-object)
+ * [Chat Class](###chat)
+ * [Notes](###note)
 
 
 ## How to use

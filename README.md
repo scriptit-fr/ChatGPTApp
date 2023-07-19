@@ -7,24 +7,25 @@ The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT int
 
 ###### How to use : 
 
-* [Setup](###setup)
-* [Create a New Chat](###creating-a-new-chat)
-* [Add Messages](###adding-messages-to-the-chat)
-* [Add Callable Functions](###adding-a-function-to-the-chat)
-* [Enable web browsing (optional)](###enabling-browsing)
-* [Run the Chat](###running-the-chat)
+* [Setup](#setup)
+* [Create a New Chat](#create-a-new-chat)
+* [Add Messages](#add-messages)
+* [Add Callable Functions](#add-callable-function)
+* [Enable web browsing (optional)](#enable-web-browsing-optionnal)
+* [Run the Chat](#run-the-chat)
 
 ###### Examples :
 
- * [Send a prompt and get completion](###Example-1-:-Send-a-prompt-and-get-completion)
- * [Ask Open AI to create a draft reply for the last email in Gmail inbox](###Example-2-:-Ask-Open-AI-to-create-a-draft-reply-for-the-last-email-in-gmail-inbox)
- * [Retrieve structured data instead of raw text with onlyReturnArgument()](###Example-3-:-Retrieve-structured-data-instead-of-raw-text-with-onlyReturnArgument())
- * [Use web browsing](###Example-3-:-Use-web-browsing)
+ * [Send a prompt and get completion](#example-1--send-a-prompt-and-get-completion)
+ * [Ask Open AI to create a draft reply for the last email in Gmail inbox](#example-2--ask-open-ai-to-create-a-draft-reply-for-the-last-email-in-gmail-inbox)
+ * [Retrieve structured data instead of raw text with onlyReturnArgument()](#example-3--retrieve-structured-data-instead-of-raw-text-with-onlyreturnargument)
+ * [Use web browsing](#example-4--use-web-browsing)
 ###### Reference :
 
- * [Function Class](###function-object)
- * [Chat Class](###chat)
- * [Notes](###note)
+ * [Function Class](#function-object)
+ * [Chat Class](#chat)
+ * [Notes](#note)
+
 
 
 ## How to use

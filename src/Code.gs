@@ -172,7 +172,7 @@ const ChatGPTApp = (function () {
       let messages = [];
       let functions = [];
       let model = "gpt-3.5-turbo"; // default 
-      let temperature = 0;
+      let temperature = 0.4;
       let maxToken = 300;
       let browsing = false;
 

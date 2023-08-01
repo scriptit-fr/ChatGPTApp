@@ -12,6 +12,7 @@ The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT int
 * [Add Messages](#add-messages)
 * [Add Callable Functions](#add-callable-function)
 * [Enable web browsing (optional)](#enable-web-browsing-optionnal)
+* [Specify the website or domain to browse](#specify-a-specific-website-or-domain-to-browse)
 * [Run the Chat](#run-the-chat)
 
 ###### Examples :
@@ -85,6 +86,13 @@ If you want to allow the model to perform web searches and fetch web pages, you 
 
 ```javascript
 chat.enableBrowsing(true);
+```
+
+### Specify a specific website or domain to browse
+If you wish to browse a specific website, you can use the restrictToWebsite(url) method as bellow : 
+
+```javascript
+  ChatGPTApp.restrictToWebsite("https://support.google.com")
 ```
 
 ### Run the Chat

@@ -23,6 +23,7 @@ const ChatGPTApp = (function () {
   let OpenAIKey = "";
   let GoogleCustomSearchAPIKey = "";
   let ENABLE_LOGS = true;
+  let SITE_SEARCH;
 
   /**
    * @class
@@ -172,7 +173,7 @@ const ChatGPTApp = (function () {
       let messages = [];
       let functions = [];
       let model = "gpt-3.5-turbo"; // default 
-      let temperature = 0.4;
+      let temperature = 0;
       let maxToken = 300;
       let browsing = false;
 
@@ -237,7 +238,7 @@ const ChatGPTApp = (function () {
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
        * @param {{model?: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k", temperature?: number, maxToken?: number, function_call?: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
-       * @returns {string} - the last message of the chat 
+       * @returns {object} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
         if (advancedParametersObject) {
@@ -340,7 +341,8 @@ const ChatGPTApp = (function () {
           return "request failed";
         }
 
-        // console.log('Got response from open AI API');
+        console.log('Got response from open AI API');
+        console.log(responseMessage)
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
@@ -375,7 +377,7 @@ const ChatGPTApp = (function () {
               if (ENABLE_LOGS) {
                 console.log("Conversation stopped because end function has been called");
               }
-              return responseMessage.content;;
+              return responseMessage;;
 
 
             } else if (onlyReturnArguments) {
@@ -403,11 +405,16 @@ const ChatGPTApp = (function () {
                   if (ENABLE_LOGS) {
                     console.log("The website didn't respond, going back to the results page");
                   }
-                  let searchResults = JSON.parse(messages[messages.length - 1].content);
-                  let newSearchResult = searchResults.filter(function (obj) {
-                    return obj.link !== functionArgs.url;
-                  });
-                  messages[messages.length - 1].content = JSON.stringify(newSearchResult);
+                  try {
+                    let searchResults = JSON.parse(messages[messages.length - 1].content);
+                    let newSearchResult = searchResults.filter(function (obj) {
+                      return obj.link !== functionArgs.url;
+                    });
+                    messages[messages.length - 1].content = JSON.stringify(newSearchResult);
+                  } catch (e) {
+                    console.log(e)
+                  }
+
                   if (advancedParametersObject) {
                     return this.run(advancedParametersObject);
                   } else {
@@ -439,11 +446,11 @@ const ChatGPTApp = (function () {
           }
           else {
             // if no function has been found, stop here
-            return responseMessage.content;
+            return responseMessage;
           }
         }
         else {
-          return responseMessage.content;
+          return responseMessage;
         }
       }
     }
@@ -522,7 +529,16 @@ const ChatGPTApp = (function () {
   function webSearch(q) {
     console.log(`Web search : "${q}"`);
     const searchEngineId = "221c662683d054b63";
-    const url = `https://www.googleapis.com/customsearch/v1?key=${GoogleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
+
+    let url = `https://www.googleapis.com/customsearch/v1?key=${GoogleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
+
+    // If SITE_SEARCH is defined, append site-specific search parameters to the URL
+    if (SITE_SEARCH) {
+      console.log("Customed the web search")
+      const site = 'http://www.your-website.com';
+      const siteFilter = 'i';
+      url += `&siteSearch=${encodeURIComponent(site)}&siteSearchFilter=${siteFilter}`;
+    }
 
     let response = UrlFetchApp.fetch(url);
     let data = JSON.parse(response.getContentText());
@@ -542,8 +558,10 @@ const ChatGPTApp = (function () {
     return JSON.stringify(resultsInfo);
   }
 
+
   function urlFetch(url) {
     console.log(`Clicked on link : ${url}`);
+    // appsscript.urlFetchWhitelist.push(url)
     const options = {
       'muteHttpExceptions': true
     }
@@ -551,6 +569,7 @@ const ChatGPTApp = (function () {
     if (response.getResponseCode() == 200) {
       let pageContent = response.getContentText();
       pageContent = sanitizeHtml(pageContent);
+      // appsscript.urlFetchWhitelist.filter(item => item !== url);
       return pageContent;
 
     } else {
@@ -633,6 +652,14 @@ const ChatGPTApp = (function () {
      */
     setGoogleSearchAPIKey: function (apiKey) {
       GoogleCustomSearchAPIKey = apiKey;
+    },
+
+    /**
+     * If you want to limit your web browsing to one web page
+     * @param {string} url -  the url of the website you want to browse
+     */
+    restrictToWebsite: function (url) {
+      SITE_SEARCH = url;
     },
 
     /**

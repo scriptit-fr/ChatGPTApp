@@ -134,10 +134,6 @@ const ChatGPTApp = (function () {
         return this;
       }
 
-      /**
-       * Returns a JSON representation of the message.
-       * @returns {object} - The JSON representation of the message.
-       */
       this.toJSON = function () {
         return {
           name: name,
@@ -177,6 +173,9 @@ const ChatGPTApp = (function () {
       let temperature = 0.5;
       let maxToken = 300;
       let browsing = false;
+
+      let webSearchQueries = [];
+      let webPagesOpened = [];
 
       /**
        * Add a message to the chat.
@@ -224,14 +223,31 @@ const ChatGPTApp = (function () {
        * 
        * Enable the chat to use a google serach engine to browse the web.
        * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
+       * @param {string} [url] - A specific web page url you want to restrict the search search to. 
        * @returns {Chat} - The current Chat instance.
        */
-      this.enableBrowsing = function (bool) {
+      this.enableBrowsing = function (bool, url) {
         if (bool) {
           browsing = true
         }
+        if (url) {
+          SITE_SEARCH = url;
+        }
         return this;
-      }
+      };
+
+      this.toJson = function () {
+        return {
+          messages: messages,
+          functions: functions,
+          model: model,
+          temperature: temperature,
+          maxToken: maxToken,
+          browsing: browsing,
+          webSearchQueries: webSearchQueries,
+          webPagesOpened: webPagesOpened
+        };
+      };
 
       /**
        * Start the chat conversation.
@@ -242,6 +258,17 @@ const ChatGPTApp = (function () {
        * @returns {object} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
+        if (!OpenAIKey) {
+          if (GoogleCustomSearchAPIKey) {
+            throw Error("Carreful to use setOpenAIAPIKey to set you Open AI API key and not setGoogleSearchAPIKey.")
+          } else {
+            throw Error("Please set your Open AI API key using ChatGPTApp.setOpenAIAPIKey(youAPIKey)")
+          }
+        }
+        if (browsing && !GoogleCustomSearchAPIKey) {
+          throw Error("Please set your Google custom search API key using ChatGPTApp.setGoogleSearchAPIKey(youAPIKey)")
+        }
+
         if (advancedParametersObject) {
           if (advancedParametersObject.model) {
             model = advancedParametersObject.model;
@@ -256,7 +283,7 @@ const ChatGPTApp = (function () {
 
         if (KNOWLEDGE_LINK) {
           let knowledge = urlFetch(KNOWLEDGE_LINK);
-          messages.push({ role: "system", content: `Here's an article to help:\n\n${knowledge}`});
+          messages.push({ role: "system", content: `Here's an article to help:\n\n${knowledge}` });
         }
 
         let payload = {
@@ -348,7 +375,7 @@ const ChatGPTApp = (function () {
         }
 
         console.log('Got response from open AI API');
-        console.log(responseMessage)
+        // console.log(responseMessage)
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
@@ -405,8 +432,10 @@ const ChatGPTApp = (function () {
                   console.log(functionName + "() called by OpenAI.");
                 }
               } else if (functionName == "webSearch") {
+                webSearchQueries.push(functionArgs.q)
                 payload.function_call = { name: "urlFetch" };
               } else if (functionName == "urlFetch") {
+                webPagesOpened.push(functionArgs.url)
                 if (!functionResponse) {
                   if (ENABLE_LOGS) {
                     console.log("The website didn't respond, going back to the results page");
@@ -541,7 +570,7 @@ const ChatGPTApp = (function () {
 
     // If SITE_SEARCH is defined, append site-specific search parameters to the URL
     if (SITE_SEARCH) {
-      console.log(`Customed the web search to browse ${SITE_SEARCH}`);
+      console.log(`Site search on ${SITE_SEARCH}`);
       const site = SITE_SEARCH;
       const siteFilter = 'i';
       url += `&siteSearch=${encodeURIComponent(site)}&siteSearchFilter=${siteFilter}`;
@@ -568,6 +597,7 @@ const ChatGPTApp = (function () {
 
   function urlFetch(url) {
     console.log(`Clicked on link : ${url}`);
+
     const options = {
       'muteHttpExceptions': true
     }
@@ -585,43 +615,40 @@ const ChatGPTApp = (function () {
   }
 
   function sanitizeHtml(pageContent) {
-
     var startBody = pageContent.indexOf('<body');
     var endBody = pageContent.indexOf('</body>') + '</body>'.length;
     var bodyContent = pageContent.slice(startBody, endBody);
 
-    // naive way to extract paragraphs
-    var paragraphs = bodyContent.match(/<p[^>]*>([^<]+)<\/p>/g);
+    // handle whitelisted tags
+    bodyContent = bodyContent.replace(/<a [^>]*href="([^"]*)"[^>]*>([^<]+)<\/a>/g, '<a href="$1">$2</a>');
+    bodyContent = bodyContent.replace(/<strong>([^<]+)<\/strong>/g, '<b>$1</b>');
+    bodyContent = bodyContent.replace(/<b>([^<]+)<\/b>/g, '<b>$1</b>');
+    bodyContent = bodyContent.replace(/<(h[1-6])>([^<]+)<\/\1>/g, '<$1>$2</$1>');
+    bodyContent = bodyContent.replace(/<br\s*\/?>/g, '<br>');
 
-    var usefullContent = "";
-    if (paragraphs) {
-      for (var i = 0; i < paragraphs.length; i++) {
-        var paragraph = paragraphs[i];
-
-        // remove HTML tags
-        var taglessParagraph = paragraph.replace(/<[^>]+>/g, '');
-
-        usefullContent += taglessParagraph + '\n';
-      }
-    }
+    // remove all other tags
+    bodyContent = bodyContent.replace(/<[^>]+>/g, '');
 
     // remove doctype
-    usefullContent = usefullContent.replace(/<!DOCTYPE[^>]*>/i, '');
+    bodyContent = bodyContent.replace(/<!DOCTYPE[^>]*>/i, '');
 
-    // remove html comments
-    usefullContent = usefullContent.replace(/<!--[\s\S]*?-->/g, '');
+    // remove HTML comments
+    bodyContent = bodyContent.replace(/<!--[\s\S]*?-->/g, '');
 
     // remove new lines
-    usefullContent = usefullContent.replace(/\n/g, '');
+    bodyContent = bodyContent.replace(/\n/g, '');
 
     // replace multiple spaces with a single space
-    usefullContent = usefullContent.replace(/ +(?= )/g, '');
+
+    bodyContent = bodyContent.replace(/ +(?= )/g, '');
 
     // trim the result
-    usefullContent = usefullContent.trim();
+    bodyContent = bodyContent.trim();
 
-    return usefullContent;
+    return bodyContent;
   }
+
+
 
 
 
@@ -661,14 +688,6 @@ const ChatGPTApp = (function () {
     },
 
     /**
-     * If you want to limit your web browsing to one web page
-     * @param {string} url -  the url of the website you want to browse
-     */
-    restrictToWebsite: function (url) {
-      SITE_SEARCH = url;
-    },
-
-    /**
      * If you want to add the content of a web page to the chat
      * @param {string} url - the url of the webpage you want to fetch
      */
@@ -681,6 +700,18 @@ const ChatGPTApp = (function () {
      */
     disableLogs: function () {
       ENABLE_LOGS = false;
+    },
+
+    /**
+     * If you want to acces what occured during the conversation
+     * @param {Chat} chat - your chat instance.
+     * @returns {object} - the web search queries, the web pages opened and an historic of all the messages of the chat
+     */
+    debug: function (chat) {
+      return {
+        getWebSearchQueries: chat.toJson().webSearchQueries,
+        getWebPagesOpened: chat.toJson().webPagesOpened
+      }
     }
   }
 }

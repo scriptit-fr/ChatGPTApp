@@ -24,6 +24,7 @@ const ChatGPTApp = (function () {
   let GoogleCustomSearchAPIKey = "";
   let ENABLE_LOGS = true;
   let SITE_SEARCH;
+  let KNOWLEDGE_LINK;
 
   /**
    * @class
@@ -251,6 +252,11 @@ const ChatGPTApp = (function () {
           if (advancedParametersObject.maxToken) {
             maxToken = advancedParametersObject.maxToken;
           }
+        }
+
+        if (KNOWLEDGE_LINK) {
+          let knowledge = urlFetch(KNOWLEDGE_LINK);
+          messages.push({ role: "system", content: `Here's an article to help:\n\n${knowledge}`});
         }
 
         let payload = {
@@ -528,14 +534,15 @@ const ChatGPTApp = (function () {
 
   function webSearch(q) {
     console.log(`Web search : "${q}"`);
+
     const searchEngineId = "221c662683d054b63";
 
     let url = `https://www.googleapis.com/customsearch/v1?key=${GoogleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
 
     // If SITE_SEARCH is defined, append site-specific search parameters to the URL
     if (SITE_SEARCH) {
-      console.log("Customed the web search")
-      const site = 'http://www.your-website.com';
+      console.log(`Customed the web search to browse ${SITE_SEARCH}`);
+      const site = SITE_SEARCH;
       const siteFilter = 'i';
       url += `&siteSearch=${encodeURIComponent(site)}&siteSearchFilter=${siteFilter}`;
     }
@@ -561,7 +568,6 @@ const ChatGPTApp = (function () {
 
   function urlFetch(url) {
     console.log(`Clicked on link : ${url}`);
-    // appsscript.urlFetchWhitelist.push(url)
     const options = {
       'muteHttpExceptions': true
     }
@@ -660,6 +666,14 @@ const ChatGPTApp = (function () {
      */
     restrictToWebsite: function (url) {
       SITE_SEARCH = url;
+    },
+
+    /**
+     * If you want to add the content of a web page to the chat
+     * @param {string} url - the url of the webpage you want to fetch
+     */
+    addKnowledgeLink: function (url) {
+      KNOWLEDGE_LINK = url;
     },
 
     /**

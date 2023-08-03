@@ -260,13 +260,13 @@ const ChatGPTApp = (function () {
       this.run = function (advancedParametersObject) {
         if (!OpenAIKey) {
           if (GoogleCustomSearchAPIKey) {
-            throw Error("Carreful to use setOpenAIAPIKey to set you Open AI API key and not setGoogleSearchAPIKey.")
+            throw Error("Careful to use setOpenAIAPIKey to set your OpenAI API key and not setGoogleSearchAPIKey.");
           } else {
-            throw Error("Please set your Open AI API key using ChatGPTApp.setOpenAIAPIKey(youAPIKey)")
+            throw Error("Please set your OpenAI API key using ChatGPTApp.setOpenAIAPIKey(youAPIKey)");
           }
         }
         if (browsing && !GoogleCustomSearchAPIKey) {
-          throw Error("Please set your Google custom search API key using ChatGPTApp.setGoogleSearchAPIKey(youAPIKey)")
+          throw Error("Please set your Google custom search API key using ChatGPTApp.setGoogleSearchAPIKey(youAPIKey)");
         }
 
         if (advancedParametersObject) {
@@ -375,7 +375,6 @@ const ChatGPTApp = (function () {
         }
 
         console.log('Got response from open AI API');
-        // console.log(responseMessage)
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
@@ -432,10 +431,10 @@ const ChatGPTApp = (function () {
                   console.log(functionName + "() called by OpenAI.");
                 }
               } else if (functionName == "webSearch") {
-                webSearchQueries.push(functionArgs.q)
+                webSearchQueries.push(functionArgs.q);
                 payload.function_call = { name: "urlFetch" };
               } else if (functionName == "urlFetch") {
-                webPagesOpened.push(functionArgs.url)
+                webPagesOpened.push(functionArgs.url);
                 if (!functionResponse) {
                   if (ENABLE_LOGS) {
                     console.log("The website didn't respond, going back to the results page");
@@ -614,39 +613,44 @@ const ChatGPTApp = (function () {
 
   }
 
-  function sanitizeHtml(pageContent) {
-    var startBody = pageContent.indexOf('<body');
-    var endBody = pageContent.indexOf('</body>') + '</body>'.length;
-    var bodyContent = pageContent.slice(startBody, endBody);
+function sanitizeHtml(pageContent) {
+  var startBody = pageContent.indexOf('<body');
+  var endBody = pageContent.indexOf('</body>') + '</body>'.length;
+  var bodyContent = pageContent.slice(startBody, endBody);
 
-    // handle whitelisted tags
-    bodyContent = bodyContent.replace(/<a [^>]*href="([^"]*)"[^>]*>([^<]+)<\/a>/g, '<a href="$1">$2</a>');
-    bodyContent = bodyContent.replace(/<strong>([^<]+)<\/strong>/g, '<b>$1</b>');
-    bodyContent = bodyContent.replace(/<b>([^<]+)<\/b>/g, '<b>$1</b>');
-    bodyContent = bodyContent.replace(/<(h[1-6])>([^<]+)<\/\1>/g, '<$1>$2</$1>');
-    bodyContent = bodyContent.replace(/<br\s*\/?>/g, '<br>');
+  // handle whitelisted tags with temporary replacements
+  bodyContent = bodyContent.replace(/<a [^>]*href="([^"]*)"[^>]*>([^<]+)<\/a>/g, 'TEMP_LINK_START$1TEMP_LINK_MIDDLE$2TEMP_LINK_END');
+  bodyContent = bodyContent.replace(/<(strong|b)>([^<]+)<\/\1>/g, 'TEMP_BOLD_START$2TEMP_BOLD_END');
+  bodyContent = bodyContent.replace(/<(h[1-6])>([^<]+)<\/\1>/g, 'TEMP_HEADER_START$1TEMP_HEADER_MIDDLE$2TEMP_HEADER_END');
+  bodyContent = bodyContent.replace(/<br\s*\/?>/g, 'TEMP_BR');
 
-    // remove all other tags
-    bodyContent = bodyContent.replace(/<[^>]+>/g, '');
+  // remove all other tags
+  bodyContent = bodyContent.replace(/<[^>]+>/g, '');
 
-    // remove doctype
-    bodyContent = bodyContent.replace(/<!DOCTYPE[^>]*>/i, '');
+  // replace temporary markers with actual tags
+  bodyContent = bodyContent.replace(/TEMP_LINK_START([^]+)TEMP_LINK_MIDDLE([^]+)TEMP_LINK_END/g, '<a href="$1">$2</a>');
+  bodyContent = bodyContent.replace(/TEMP_BOLD_START([^]+)TEMP_BOLD_END/g, '<b>$1</b>');
+  bodyContent = bodyContent.replace(/TEMP_HEADER_START(h[1-6])TEMP_HEADER_MIDDLE([^]+)TEMP_HEADER_END/g, '<$1>$2</$1>');
+  bodyContent = bodyContent.replace(/TEMP_BR/g, '<br>');
 
-    // remove HTML comments
-    bodyContent = bodyContent.replace(/<!--[\s\S]*?-->/g, '');
+  // remove doctype
+  bodyContent = bodyContent.replace(/<!DOCTYPE[^>]*>/i, '');
 
-    // remove new lines
-    bodyContent = bodyContent.replace(/\n/g, '');
+  // remove HTML comments
+  bodyContent = bodyContent.replace(/<!--[\s\S]*?-->/g, '');
 
-    // replace multiple spaces with a single space
+  // remove new lines
+  bodyContent = bodyContent.replace(/\n/g, '');
 
-    bodyContent = bodyContent.replace(/ +(?= )/g, '');
+  // replace multiple spaces with a single space
+  bodyContent = bodyContent.replace(/ +(?= )/g, '');
 
-    // trim the result
-    bodyContent = bodyContent.trim();
+  // trim the result
+  bodyContent = bodyContent.trim();
 
-    return bodyContent;
-  }
+  return bodyContent;
+}
+
 
 
 

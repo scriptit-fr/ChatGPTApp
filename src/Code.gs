@@ -107,7 +107,7 @@ const ChatGPTApp = (function () {
               type: itemsType
             }
           } else {
-            console.log("Please precise the type of the items contained in the array when calling addParameter. Use format Array.<itemsType> for the type parameter.");
+            throw Error("Please precise the type of the items contained in the array when calling addParameter. Use format Array.<itemsType> for the type parameter.");
             return
           }
 
@@ -134,10 +134,6 @@ const ChatGPTApp = (function () {
         return this;
       }
 
-      /**
-       * Returns a JSON representation of the message.
-       * @returns {object} - The JSON representation of the message.
-       */
       this.toJSON = function () {
         return {
           name: name,
@@ -177,6 +173,9 @@ const ChatGPTApp = (function () {
       let temperature = 0.5;
       let maxToken = 300;
       let browsing = false;
+
+      let webSearchQueries = [];
+      let webPagesOpened = [];
 
       /**
        * Add a message to the chat.
@@ -220,18 +219,56 @@ const ChatGPTApp = (function () {
       };
 
       /**
+       * If you only want to keep your own logs and disable those of the library
+       * @returns {Chat} - The current Chat instance.
+       */
+      this.disableLogs = function (bool) {
+        if (bool) {
+          ENABLE_LOGS = false;
+        }
+        return this;
+      },
+
+      /**
        * OPTIONAL
        * 
        * Enable the chat to use a google serach engine to browse the web.
        * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
+       * @param {string} [url] - A specific web page url you want to restrict the search search to. 
        * @returns {Chat} - The current Chat instance.
        */
-      this.enableBrowsing = function (bool) {
+      this.enableBrowsing = function (bool, url) {
         if (bool) {
           browsing = true
         }
+        if (url) {
+          SITE_SEARCH = url;
+        }
         return this;
-      }
+      };
+
+      /**
+       * If you want to add the content of a web page to the chat
+       * @param {string} url - the url of the webpage you want to fetch
+       * @returns {Chat} - The current Chat instance.
+       */
+      this.addKnowledgeLink = function (url) {
+        KNOWLEDGE_LINK = url;
+        return this;
+      };
+
+      this.toJson = function () {
+        return {
+          messages: messages,
+          functions: functions,
+          model: model,
+          temperature: temperature,
+          maxToken: maxToken,
+          browsing: browsing,
+          webSearchQueries: webSearchQueries,
+          webPagesOpened: webPagesOpened
+        };
+      };
 
       /**
        * Start the chat conversation.
@@ -242,6 +279,17 @@ const ChatGPTApp = (function () {
        * @returns {object} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
+        if (!OpenAIKey) {
+          if (GoogleCustomSearchAPIKey) {
+            throw Error("Careful to use setOpenAIAPIKey to set your OpenAI API key and not setGoogleSearchAPIKey.");
+          } else {
+            throw Error("Please set your OpenAI API key using ChatGPTApp.setOpenAIAPIKey(youAPIKey)");
+          }
+        }
+        if (browsing && !GoogleCustomSearchAPIKey) {
+          throw Error("Please set your Google custom search API key using ChatGPTApp.setGoogleSearchAPIKey(youAPIKey)");
+        }
+
         if (advancedParametersObject) {
           if (advancedParametersObject.model) {
             model = advancedParametersObject.model;
@@ -256,7 +304,10 @@ const ChatGPTApp = (function () {
 
         if (KNOWLEDGE_LINK) {
           let knowledge = urlFetch(KNOWLEDGE_LINK);
-          messages.push({ role: "system", content: `Here's an article to help:\n\n${knowledge}`});
+          if (!knowledge) {
+            throw Error(`The webpage ${KNOWLEDGE_LINK} didn't respond, please change the url of the addKnowledgeLink() function.`)
+          }
+          messages.push({ role: "system", content: `Here's an article to help:\n\n${knowledge}` });
         }
 
         let payload = {
@@ -327,7 +378,7 @@ const ChatGPTApp = (function () {
             responseMessage = JSON.parse(response.getContentText()).choices[0].message;
             endReason = JSON.parse(response.getContentText()).choices[0].finish_reason;
             if (endReason == "length") {
-              console.log("WARNING : Answer has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property");
+              console.log("WARNING from ChatGPTApp: Answer has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property");
             }
             success = true;
           } else if (responseCode === 503) {
@@ -347,8 +398,9 @@ const ChatGPTApp = (function () {
           return "request failed";
         }
 
-        console.log('Got response from open AI API');
-        console.log(responseMessage)
+        if (ENABLE_LOGS) {
+          console.log('Got response from openAI API');
+        }
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
@@ -405,8 +457,10 @@ const ChatGPTApp = (function () {
                   console.log(functionName + "() called by OpenAI.");
                 }
               } else if (functionName == "webSearch") {
+                webSearchQueries.push(functionArgs.q);
                 payload.function_call = { name: "urlFetch" };
               } else if (functionName == "urlFetch") {
+                webPagesOpened.push(functionArgs.url);
                 if (!functionResponse) {
                   if (ENABLE_LOGS) {
                     console.log("The website didn't respond, going back to the results page");
@@ -418,7 +472,7 @@ const ChatGPTApp = (function () {
                     });
                     messages[messages.length - 1].content = JSON.stringify(newSearchResult);
                   } catch (e) {
-                    console.log(e)
+                    console.log(e);
                   }
 
                   if (advancedParametersObject) {
@@ -483,8 +537,7 @@ const ChatGPTApp = (function () {
         return "the function has been sucessfully executed but has nothing to return";
       }
     } else {
-      console.log("Function not found or not a function: " + functionName);
-      return "the function was not found and was not executed."
+      throw Error("Function not found or not a function: " + functionName);
     }
   }
 
@@ -533,7 +586,9 @@ const ChatGPTApp = (function () {
   }
 
   function webSearch(q) {
-    console.log(`Web search : "${q}"`);
+    if (ENABLE_LOGS) {
+      console.log(`Web search : "${q}"`);
+    }
 
     const searchEngineId = "221c662683d054b63";
 
@@ -541,7 +596,9 @@ const ChatGPTApp = (function () {
 
     // If SITE_SEARCH is defined, append site-specific search parameters to the URL
     if (SITE_SEARCH) {
-      console.log(`Customed the web search to browse ${SITE_SEARCH}`);
+      if (ENABLE_LOGS) {
+        console.log(`Site search on ${SITE_SEARCH}`);
+      }
       const site = SITE_SEARCH;
       const siteFilter = 'i';
       url += `&siteSearch=${encodeURIComponent(site)}&siteSearchFilter=${siteFilter}`;
@@ -567,7 +624,9 @@ const ChatGPTApp = (function () {
 
 
   function urlFetch(url) {
-    console.log(`Clicked on link : ${url}`);
+    if (ENABLE_LOGS) {
+      console.log(`Clicked on link : ${url}`);
+    }
     const options = {
       'muteHttpExceptions': true
     }
@@ -623,13 +682,10 @@ const ChatGPTApp = (function () {
     return usefullContent;
   }
 
-
-
-
   return {
     /**
      * Create a new chat.
-     * @params {string} apiKey - Your OPEN AI API key.
+     * @params {string} apiKey - Your openAI API key.
      * @returns {Chat} - A new Chat instance.
      */
     newChat: function () {
@@ -646,7 +702,7 @@ const ChatGPTApp = (function () {
 
     /**
      * Mandatory
-     * @param {string} apiKey - Your Open AI API key.
+     * @param {string} apiKey - Your openAI API key.
      */
     setOpenAIAPIKey: function (apiKey) {
       OpenAIKey = apiKey;
@@ -661,26 +717,15 @@ const ChatGPTApp = (function () {
     },
 
     /**
-     * If you want to limit your web browsing to one web page
-     * @param {string} url -  the url of the website you want to browse
+     * If you want to acces what occured during the conversation
+     * @param {Chat} chat - your chat instance.
+     * @returns {object} - the web search queries, the web pages opened and an historic of all the messages of the chat
      */
-    restrictToWebsite: function (url) {
-      SITE_SEARCH = url;
-    },
-
-    /**
-     * If you want to add the content of a web page to the chat
-     * @param {string} url - the url of the webpage you want to fetch
-     */
-    addKnowledgeLink: function (url) {
-      KNOWLEDGE_LINK = url;
-    },
-
-    /**
-     * If you only want to keep your own logs and disable those of the library
-     */
-    disableLogs: function () {
-      ENABLE_LOGS = false;
+    debug: function (chat) {
+      return {
+        getWebSearchQueries: function () { return chat.toJson().webSearchQueries },
+        getWebPagesOpened: function () { return chat.toJson().webPagesOpened }
+      }
     }
   }
 }

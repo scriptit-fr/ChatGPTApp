@@ -219,22 +219,33 @@ const ChatGPTApp = (function () {
       };
 
       /**
-       * OPTIONAL
-       * 
-       * Enable the chat to use a google serach engine to browse the web.
-       * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
-       * @param {string} [url] - A specific web page url you want to restrict the search search to. 
+       * If you only want to keep your own logs and disable those of the library
        * @returns {Chat} - The current Chat instance.
        */
-      this.enableBrowsing = function (bool, url) {
+      this.disableLogs = function (bool) {
         if (bool) {
-          browsing = true
-        }
-        if (url) {
-          SITE_SEARCH = url;
+          ENABLE_LOGS = false;
         }
         return this;
-      };
+      },
+
+        /**
+         * OPTIONAL
+         * 
+         * Enable the chat to use a google serach engine to browse the web.
+         * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
+         * @param {string} [url] - A specific web page url you want to restrict the search search to. 
+         * @returns {Chat} - The current Chat instance.
+         */
+        this.enableBrowsing = function (bool, url) {
+          if (bool) {
+            browsing = true
+          }
+          if (url) {
+            SITE_SEARCH = url;
+          }
+          return this;
+        };
 
       this.toJson = function () {
         return {
@@ -701,21 +712,14 @@ const ChatGPTApp = (function () {
     },
 
     /**
-     * If you only want to keep your own logs and disable those of the library
-     */
-    disableLogs: function () {
-      ENABLE_LOGS = false;
-    },
-
-    /**
      * If you want to acces what occured during the conversation
      * @param {Chat} chat - your chat instance.
      * @returns {object} - the web search queries, the web pages opened and an historic of all the messages of the chat
      */
     debug: function (chat) {
       return {
-        getWebSearchQueries: chat.toJson().webSearchQueries,
-        getWebPagesOpened: chat.toJson().webPagesOpened
+        getWebSearchQueries: function() { return chat.toJson().webSearchQueries },
+        getWebPagesOpened: function() { return chat.toJson().webPagesOpened }
       }
     }
   }

@@ -399,7 +399,7 @@ const ChatGPTApp = (function () {
         }
 
         if (ENABLE_LOGS) {
-          console.log('Got response from open AI API');
+          console.log('Got response from openAI API');
         }
 
         if (functionCalling) {
@@ -685,7 +685,7 @@ const ChatGPTApp = (function () {
   return {
     /**
      * Create a new chat.
-     * @params {string} apiKey - Your OPEN AI API key.
+     * @params {string} apiKey - Your openAI API key.
      * @returns {Chat} - A new Chat instance.
      */
     newChat: function () {
@@ -702,7 +702,7 @@ const ChatGPTApp = (function () {
 
     /**
      * Mandatory
-     * @param {string} apiKey - Your Open AI API key.
+     * @param {string} apiKey - Your openAI API key.
      */
     setOpenAIAPIKey: function (apiKey) {
       OpenAIKey = apiKey;

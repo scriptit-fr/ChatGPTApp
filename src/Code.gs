@@ -613,43 +613,44 @@ const ChatGPTApp = (function () {
 
   }
 
-function sanitizeHtml(pageContent) {
-  var startBody = pageContent.indexOf('<body');
-  var endBody = pageContent.indexOf('</body>') + '</body>'.length;
-  var bodyContent = pageContent.slice(startBody, endBody);
+  function sanitizeHtml(pageContent) {
 
-  // handle whitelisted tags with temporary replacements
-  bodyContent = bodyContent.replace(/<a [^>]*href="([^"]*)"[^>]*>([^<]+)<\/a>/g, 'TEMP_LINK_START$1TEMP_LINK_MIDDLE$2TEMP_LINK_END');
-  bodyContent = bodyContent.replace(/<(strong|b)>([^<]+)<\/\1>/g, 'TEMP_BOLD_START$2TEMP_BOLD_END');
-  bodyContent = bodyContent.replace(/<(h[1-6])>([^<]+)<\/\1>/g, 'TEMP_HEADER_START$1TEMP_HEADER_MIDDLE$2TEMP_HEADER_END');
-  bodyContent = bodyContent.replace(/<br\s*\/?>/g, 'TEMP_BR');
+    var startBody = pageContent.indexOf('<body');
+    var endBody = pageContent.indexOf('</body>') + '</body>'.length;
+    var bodyContent = pageContent.slice(startBody, endBody);
 
-  // remove all other tags
-  bodyContent = bodyContent.replace(/<[^>]+>/g, '');
+    // naive way to extract paragraphs
+    var paragraphs = bodyContent.match(/<p[^>]*>([^<]+)<\/p>/g);
 
-  // replace temporary markers with actual tags
-  bodyContent = bodyContent.replace(/TEMP_LINK_START([^]+)TEMP_LINK_MIDDLE([^]+)TEMP_LINK_END/g, '<a href="$1">$2</a>');
-  bodyContent = bodyContent.replace(/TEMP_BOLD_START([^]+)TEMP_BOLD_END/g, '<b>$1</b>');
-  bodyContent = bodyContent.replace(/TEMP_HEADER_START(h[1-6])TEMP_HEADER_MIDDLE([^]+)TEMP_HEADER_END/g, '<$1>$2</$1>');
-  bodyContent = bodyContent.replace(/TEMP_BR/g, '<br>');
+    var usefullContent = "";
+    if (paragraphs) {
+      for (var i = 0; i < paragraphs.length; i++) {
+        var paragraph = paragraphs[i];
 
-  // remove doctype
-  bodyContent = bodyContent.replace(/<!DOCTYPE[^>]*>/i, '');
+        // remove HTML tags
+        var taglessParagraph = paragraph.replace(/<[^>]+>/g, '');
 
-  // remove HTML comments
-  bodyContent = bodyContent.replace(/<!--[\s\S]*?-->/g, '');
+        usefullContent += taglessParagraph + '\n';
+      }
+    }
 
-  // remove new lines
-  bodyContent = bodyContent.replace(/\n/g, '');
+    // remove doctype
+    usefullContent = usefullContent.replace(/<!DOCTYPE[^>]*>/i, '');
 
-  // replace multiple spaces with a single space
-  bodyContent = bodyContent.replace(/ +(?= )/g, '');
+    // remove html comments
+    usefullContent = usefullContent.replace(/<!--[\s\S]*?-->/g, '');
 
-  // trim the result
-  bodyContent = bodyContent.trim();
+    // remove new lines
+    usefullContent = usefullContent.replace(/\n/g, '');
 
-  return bodyContent;
-}
+    // replace multiple spaces with a single space
+    usefullContent = usefullContent.replace(/ +(?= )/g, '');
+
+    // trim the result
+    usefullContent = usefullContent.trim();
+
+    return usefullContent;
+  }
 
 
 

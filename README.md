@@ -11,7 +11,7 @@ The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT int
 * [Create a New Chat](#create-a-new-chat)
 * [Add Messages](#add-messages)
 * [Add Callable Functions](#add-callable-function)
-* [Enable web browsing (optional)](#enable-web-browsing-optionnal)
+* [Enable web browsing (optional)](#enable-web-browsing-optional)
 * [Run the Chat](#run-the-chat)
 
 ###### Examples :
@@ -79,7 +79,7 @@ From the moment that you add a function to chat, we will use Open AI's function 
 
 For more information : [https://platform.openai.com/docs/guides/gpt/function-calling](https://platform.openai.com/docs/guides/gpt/function-calling)
 
-### Enable web browsing (optionnal)
+### Enable web browsing (optional)
 
 If you want to allow the model to perform web searches and fetch web pages, you can enable browsing.
 
@@ -91,7 +91,7 @@ If want to restrict your browsing to a specific web page, you can add as a secon
 ```javascript
   chat.enableBrowsing(true, "https://support.google.com");
 ```
-### Give a wep page as a knowledge base (optionnal)
+### Give a wep page as a knowledge base (optional)
 
 If you don't need the perform a web search and wnat ti directly give a link for a web page you want the chat to read before performing any action, you can use hte addKnowledgeLink(url) function.
 ```javascript

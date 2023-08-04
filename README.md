@@ -91,6 +91,12 @@ If want to restrict your browsing to a specific web page, you can add as a secon
 ```javascript
   chat.enableBrowsing(true, "https://support.google.com");
 ```
+### Give a wep page as a knowledge base (optionnal)
+
+If you don't need the perform a web search and wnat ti directly give a link for a web page you want the chat to read before performing any action, you can use hte addKnowledgeLink(url) function.
+```javascript
+  chat.addKnowledgeLink("https://developers.google.com/apps-script/guides/libraries");
+```
 
 ### Run the Chat
 

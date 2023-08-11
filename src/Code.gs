@@ -630,8 +630,9 @@ const ChatGPTApp = (function () {
     const options = {
       'muteHttpExceptions': true
     }
+    let response;
     try {
-      let response = UrlFetchApp.fetch(url);
+      response = UrlFetchApp.fetch(url);
     } catch (e) {
       console.error(`Error fetching the URL: ${e.message}`);
       return JSON.stringify({ error: "Failed to fetch the URL" });

@@ -229,23 +229,23 @@ const ChatGPTApp = (function () {
         return this;
       },
 
-      /**
-       * OPTIONAL
-       * 
-       * Enable the chat to use a google serach engine to browse the web.
-       * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
-       * @param {string} [url] - A specific web page url you want to restrict the search search to. 
-       * @returns {Chat} - The current Chat instance.
-       */
-      this.enableBrowsing = function (bool, url) {
-        if (bool) {
-          browsing = true
-        }
-        if (url) {
-          SITE_SEARCH = url;
-        }
-        return this;
-      };
+        /**
+         * OPTIONAL
+         * 
+         * Enable the chat to use a google serach engine to browse the web.
+         * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
+         * @param {string} [url] - A specific web page url you want to restrict the search search to. 
+         * @returns {Chat} - The current Chat instance.
+         */
+        this.enableBrowsing = function (bool, url) {
+          if (bool) {
+            browsing = true
+          }
+          if (url) {
+            SITE_SEARCH = url;
+          }
+          return this;
+        };
 
       /**
        * If you want to add the content of a web page to the chat
@@ -630,11 +630,15 @@ const ChatGPTApp = (function () {
     const options = {
       'muteHttpExceptions': true
     }
-    let response = UrlFetchApp.fetch(url, options);
+    try {
+      let response = UrlFetchApp.fetch(url);
+    } catch (e) {
+      console.error(`Error fetching the URL: ${e.message}`);
+      return JSON.stringify({ error: "Failed to fetch the URL" });
+    }
     if (response.getResponseCode() == 200) {
       let pageContent = response.getContentText();
-      pageContent = sanitizeHtml(pageContent);
-      // appsscript.urlFetchWhitelist.filter(item => item !== url);
+      pageContent = convertHtmlToMarkdown(pageContent);
       return pageContent;
 
     } else {
@@ -643,43 +647,90 @@ const ChatGPTApp = (function () {
 
   }
 
-  function sanitizeHtml(pageContent) {
+  function convertHtmlToMarkdown(htmlString) {
+    // Remove <script> tags and their content
+    htmlString = htmlString.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Remove <style> tags and their content
+    htmlString = htmlString.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    // Remove on* attributes (e.g., onclick, onload)
+    htmlString = htmlString.replace(/ ?on[a-z]*=".*?"/gi, '');
+    // Remove style attributes
+    htmlString = htmlString.replace(/ ?style=".*?"/gi, '');
+    // Remove class attributes
+    htmlString = htmlString.replace(/ ?class=".*?"/gi, '');
 
-    var startBody = pageContent.indexOf('<body');
-    var endBody = pageContent.indexOf('</body>') + '</body>'.length;
-    var bodyContent = pageContent.slice(startBody, endBody);
+    // Convert &nbsp; to spaces
+    htmlString = htmlString.replace(/&nbsp;/g, ' ');
 
-    // naive way to extract paragraphs
-    var paragraphs = bodyContent.match(/<p[^>]*>([^<]+)<\/p>/g);
+    // Improved anchor tag conversion
+    htmlString = htmlString.replace(/<a [^>]*href="(.*?)"[^>]*>(.*?)<\/a>/g, '[$2]($1)');
 
-    var usefullContent = "";
-    if (paragraphs) {
-      for (var i = 0; i < paragraphs.length; i++) {
-        var paragraph = paragraphs[i];
-
-        // remove HTML tags
-        var taglessParagraph = paragraph.replace(/<[^>]+>/g, '');
-
-        usefullContent += taglessParagraph + '\n';
-      }
+    // Strong
+    htmlString = htmlString.replace(/<strong>(.*?)<\/strong>/g, '**$1**');
+    // Emphasize
+    htmlString = htmlString.replace(/<em>(.*?)<\/em>/g, '_$1_');
+    // Headers
+    for (let i = 1; i <= 6; i++) {
+      const regex = new RegExp(`<h${i}>(.*?)<\/h${i}>`, 'g');
+      htmlString = htmlString.replace(regex, `${'#'.repeat(i)} $1`);
     }
 
-    // remove doctype
-    usefullContent = usefullContent.replace(/<!DOCTYPE[^>]*>/i, '');
+    // Blockquote
+    htmlString = htmlString.replace(/<blockquote>(.*?)<\/blockquote>/g, '> $1');
 
-    // remove html comments
-    usefullContent = usefullContent.replace(/<!--[\s\S]*?-->/g, '');
+    // Unordered list
+    htmlString = htmlString.replace(/<ul>(.*?)<\/ul>/g, '$1');
+    htmlString = htmlString.replace(/<li>(.*?)<\/li>/g, '- $1');
 
-    // remove new lines
-    usefullContent = usefullContent.replace(/\n/g, '');
+    // Ordered list
+    htmlString = htmlString.replace(/<ol>(.*?)<\/ol>/g, '$1');
+    htmlString = htmlString.replace(/<li>(.*?)<\/li>/g, (match, p1, offset, string) => {
+      const number = string.substring(0, offset).match(/<li>/g).length;
+      return `${number}. ${p1}`;
+    });
 
-    // replace multiple spaces with a single space
-    usefullContent = usefullContent.replace(/ +(?= )/g, '');
+    // Handle table headers (if they exist)
+    htmlString = htmlString.replace(/<thead>([\s\S]*?)<\/thead>/g, (match, content) => {
+      let headerRow = content.replace(/<th>(.*?)<\/th>/g, '| $1 ').trim() + '|';
+      let separatorRow = headerRow.replace(/[^|]+/g, match => {
+        return '-'.repeat(match.length);
+      }).replace(/\| -/g, '|--');
+      return headerRow + '\n' + separatorRow;
+    });
 
-    // trim the result
-    usefullContent = usefullContent.trim();
+    // Handle table rows
+    htmlString = htmlString.replace(/<tbody>([\s\S]*?)<\/tbody>/g, (match, content) => {
+      return content.replace(/<tr>([\s\S]*?)<\/tr>/g, (match, trContent) => {
+        return trContent.replace(/<td>(.*?)<\/td>/g, '| $1 ').trim() + '|';
+      });
+    });
 
-    return usefullContent;
+    // Inline code
+    htmlString = htmlString.replace(/<code>(.*?)<\/code>/g, '`$1`');
+    // Preformatted text
+    htmlString = htmlString.replace(/<pre>(.*?)<\/pre>/g, '```\n$1\n```');
+    // Images with URLs as sources
+    htmlString = htmlString.replace(/<img src="(.+?)" alt="(.*?)" ?\/?>/g, '[Image here]');
+
+    // Remove remaining HTML tags
+    htmlString = htmlString.replace(/<[^>]*>/g, '');
+
+    // Trim excessive white spaces between words/phrases
+    htmlString = htmlString.replace(/ +/g, ' ');
+
+    // Remove whitespace followed by newline patterns
+    htmlString = htmlString.replace(/ \n/g, '\n');
+
+    // Normalize the line endings to just \n
+    htmlString = htmlString.replace(/\r\n/g, '\n');
+
+    // Collapse multiple contiguous newline characters down to a single newline
+    htmlString = htmlString.replace(/\n{2,}/g, '\n');
+
+    // Trim leading and trailing white spaces and newlines
+    htmlString = htmlString.trim();
+
+    return htmlString;
   }
 
   return {

@@ -16,9 +16,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-
-
-const ChatGPTApp = (function () {
+const ChatGPTApp = (function() {
 
   let OpenAIKey = "";
   let GoogleCustomSearchAPIKey = "";
@@ -46,7 +44,7 @@ const ChatGPTApp = (function () {
        * @param {string} nameOfYourFunction - The name to set for the function.
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.setName = function (nameOfYourFunction) {
+      this.setName = function(nameOfYourFunction) {
         name = nameOfYourFunction;
         return this;
       };
@@ -56,7 +54,7 @@ const ChatGPTApp = (function () {
        * @param {string} descriptionOfYourFunction - The description to set for the function.
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.setDescription = function (descriptionOfYourFunction) {
+      this.setDescription = function(descriptionOfYourFunction) {
         description = descriptionOfYourFunction;
         return this;
       };
@@ -68,7 +66,7 @@ const ChatGPTApp = (function () {
        * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.endWithResult = function (bool) {
+      this.endWithResult = function(bool) {
         if (bool) {
           endingFunction = true;
         }
@@ -85,7 +83,7 @@ const ChatGPTApp = (function () {
        * @param {boolean} [isOptional] - To set if the argument is optional (default: false).
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.addParameter = function (name, type, description, isOptional = false) {
+      this.addParameter = function(name, type, description, isOptional = false) {
         let itemsType;
 
 
@@ -106,7 +104,8 @@ const ChatGPTApp = (function () {
             properties[name]["items"] = {
               type: itemsType
             }
-          } else {
+          }
+          else {
             throw Error("Please precise the type of the items contained in the array when calling addParameter. Use format Array.<itemsType> for the type parameter.");
             return
           }
@@ -121,20 +120,20 @@ const ChatGPTApp = (function () {
       }
 
       /**
-      * OPTIONAL
-      * If enabled, the conversation will automatically end when this function is called and the chat will return the arguments in a stringified JSON object.
-      * Default : false
-      * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
-      * @returns {FunctionObject} - The current Function instance.
-      */
-      this.onlyReturnArguments = function (bool) {
+       * OPTIONAL
+       * If enabled, the conversation will automatically end when this function is called and the chat will return the arguments in a stringified JSON object.
+       * Default : false
+       * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
+       * @returns {FunctionObject} - The current Function instance.
+       */
+      this.onlyReturnArguments = function(bool) {
         if (bool) {
           onlyArgs = true;
         }
         return this;
       }
 
-      this.toJSON = function () {
+      this.toJSON = function() {
         return {
           name: name,
           description: description,
@@ -183,12 +182,15 @@ const ChatGPTApp = (function () {
        * @param {boolean} [system] - OPTIONAL - True if message from system, False for user. 
        * @returns {Chat} - The current Chat instance.
        */
-      this.addMessage = function (messageContent, system) {
+      this.addMessage = function(messageContent, system) {
         let role = "user";
         if (system) {
           role = "system";
         }
-        messages.push({ role: role, content: messageContent });
+        messages.push({
+          role: role,
+          content: messageContent
+        });
         return this;
       };
 
@@ -197,7 +199,7 @@ const ChatGPTApp = (function () {
        * @param {FunctionObject} functionObject - The function to be added.
        * @returns {Chat} - The current Chat instance.
        */
-      this.addFunction = function (functionObject) {
+      this.addFunction = function(functionObject) {
         functions.push(functionObject);
         return this;
       };
@@ -206,7 +208,7 @@ const ChatGPTApp = (function () {
        * Get the messages of the chat.
        * returns {string[]} - The messages of the chat.
        */
-      this.getMessages = function () {
+      this.getMessages = function() {
         return JSON.stringify(messages);
       };
 
@@ -214,7 +216,7 @@ const ChatGPTApp = (function () {
        * Get the functions of the chat.
        * returns {FunctionObject[]} - The functions of the chat.
        */
-      this.getFunctions = function () {
+      this.getFunctions = function() {
         return JSON.stringify(functions);
       };
 
@@ -222,12 +224,12 @@ const ChatGPTApp = (function () {
        * If you only want to keep your own logs and disable those of the library
        * @returns {Chat} - The current Chat instance.
        */
-      this.disableLogs = function (bool) {
-        if (bool) {
-          ENABLE_LOGS = false;
-        }
-        return this;
-      },
+      this.disableLogs = function(bool) {
+          if (bool) {
+            ENABLE_LOGS = false;
+          }
+          return this;
+        },
 
         /**
          * OPTIONAL
@@ -237,7 +239,7 @@ const ChatGPTApp = (function () {
          * @param {string} [url] - A specific web page url you want to restrict the search search to. 
          * @returns {Chat} - The current Chat instance.
          */
-        this.enableBrowsing = function (bool, url) {
+        this.enableBrowsing = function(bool, url) {
           if (bool) {
             browsing = true
           }
@@ -252,12 +254,12 @@ const ChatGPTApp = (function () {
        * @param {string} url - the url of the webpage you want to fetch
        * @returns {Chat} - The current Chat instance.
        */
-      this.addKnowledgeLink = function (url) {
+      this.addKnowledgeLink = function(url) {
         KNOWLEDGE_LINK = url;
         return this;
       };
 
-      this.toJson = function () {
+      this.toJson = function() {
         return {
           messages: messages,
           functions: functions,
@@ -278,11 +280,12 @@ const ChatGPTApp = (function () {
        * @param {{model?: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k", temperature?: number, maxToken?: number, function_call?: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {object} - the last message of the chat 
        */
-      this.run = function (advancedParametersObject) {
+      this.run = function(advancedParametersObject) {
         if (!OpenAIKey) {
           if (GoogleCustomSearchAPIKey) {
             throw Error("Careful to use setOpenAIAPIKey to set your OpenAI API key and not setGoogleSearchAPIKey.");
-          } else {
+          }
+          else {
             throw Error("Please set your OpenAI API key using ChatGPTApp.setOpenAIAPIKey(youAPIKey)");
           }
         }
@@ -307,7 +310,10 @@ const ChatGPTApp = (function () {
           if (!knowledge) {
             throw Error(`The webpage ${KNOWLEDGE_LINK} didn't respond, please change the url of the addKnowledgeLink() function.`)
           }
-          messages.push({ role: "system", content: `Here's an article to help:\n\n${knowledge}` });
+          messages.push({
+            role: "system",
+            content: `Here's an article to help:\n\n${knowledge}`
+          });
         }
 
         let payload = {
@@ -322,18 +328,28 @@ const ChatGPTApp = (function () {
 
         if (browsing) {
           if (messages[messages.length - 1].role !== "function") {
-            messages.push({ role: "system", content: "You are able to perform queries on Google search using the function webSearch, then open results and get the content of a web page using the function urlFetch." });
+            messages.push({
+              role: "system",
+              content: "You are able to perform queries on Google search using the function webSearch, then open results and get the content of a web page using the function urlFetch."
+            });
             functions.push(webSearchFunction);
             functions.push(urlFetchFunction);
-            let function_calling = { name: "webSearch" };
+            let function_calling = {
+              name: "webSearch"
+            };
             payload.function_call = function_calling;
-          } else if (messages[messages.length - 1].role == "function" && messages[messages.length - 1].name === "webSearch") {
-            let function_calling = { name: "urlFetch" };
+          }
+          else if (messages[messages.length - 1].role == "function" &&
+            messages[messages.length - 1].name === "webSearch") {
+            let function_calling = {
+              name: "urlFetch"
+            };
             payload.function_call = function_calling;
           }
         }
 
-        if (functions.length >> 0) { // the user has added functions, we enable function calling
+        if (functions.length >> 0) {
+          // the user has added functions, enable function calling
           functionCalling = true;
           let payloadFunctions = Object.keys(functions).map(f => ({
             name: functions[f].toJSON().name,
@@ -346,8 +362,15 @@ const ChatGPTApp = (function () {
             payload.function_call = 'auto';
           }
 
-          if (advancedParametersObject && advancedParametersObject.function_call && JSON.stringify(payload.function_call) !== JSON.stringify({ name: "urlFetch" })) { // the user has set a specific function to call
-            let function_calling = { name: advancedParametersObject.function_call };
+          if (advancedParametersObject &&
+            advancedParametersObject.function_call &&
+            JSON.stringify(payload.function_call) !== JSON.stringify({
+              name: "urlFetch"
+            })) {
+            // the user has set a specific function to call
+            let function_calling = {
+              name: advancedParametersObject.function_call
+            };
             payload.function_call = function_calling;
           }
         }
@@ -378,15 +401,17 @@ const ChatGPTApp = (function () {
             responseMessage = JSON.parse(response.getContentText()).choices[0].message;
             endReason = JSON.parse(response.getContentText()).choices[0].finish_reason;
             if (endReason == "length") {
-              console.log("WARNING from ChatGPTApp: Answer has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property");
+              console.warn("OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property");
             }
             success = true;
-          } else if (responseCode === 503) {
+          }
+          else if (responseCode === 503) {
             // The server is temporarily unavailable, wait before retrying.
             let delay = Math.pow(2, attempt) * 1000; // Delay in milliseconds, starting at 1 second.
             Utilities.sleep(delay);
             attempt++;
-          } else {
+          }
+          else {
             // The request failed for another reason, log the error and exit the loop.
             console.error('Request failed with response code', responseCode);
             break;
@@ -394,7 +419,7 @@ const ChatGPTApp = (function () {
         }
 
         if (!success) {
-          console.error('Failed to fetch the URL after', maxAttempts, 'attempts');
+          console.error('Failed to call openAI API after', maxAttempts, 'attempts');
           return "request failed";
         }
 
@@ -428,7 +453,8 @@ const ChatGPTApp = (function () {
               if (typeof functionResponse != "string") {
                 if (typeof functionResponse == "object") {
                   functionResponse = JSON.stringify(functionResponse);
-                } else {
+                }
+                else {
                   functionResponse = String(functionResponse);
                 }
               }
@@ -438,17 +464,20 @@ const ChatGPTApp = (function () {
               return responseMessage;;
 
 
-            } else if (onlyReturnArguments) {
+            }
+            else if (onlyReturnArguments) {
               if (ENABLE_LOGS) {
                 console.log("Conversation stopped because argument return has been enabled - No function has been called");
               }
               return functionArgs;
-            } else {
+            }
+            else {
               let functionResponse = callFunction(functionName, functionArgs, argsOrder);
               if (typeof functionResponse != "string") {
                 if (typeof functionResponse == "object") {
                   functionResponse = JSON.stringify(functionResponse);
-                } else {
+                }
+                else {
                   functionResponse = String(functionResponse);
                 }
               }
@@ -456,10 +485,14 @@ const ChatGPTApp = (function () {
                 if (ENABLE_LOGS) {
                   console.log(functionName + "() called by OpenAI.");
                 }
-              } else if (functionName == "webSearch") {
+              }
+              else if (functionName == "webSearch") {
                 webSearchQueries.push(functionArgs.q);
-                payload.function_call = { name: "urlFetch" };
-              } else if (functionName == "urlFetch") {
+                payload.function_call = {
+                  name: "urlFetch"
+                };
+              }
+              else if (functionName == "urlFetch") {
                 webPagesOpened.push(functionArgs.url);
                 if (!functionResponse) {
                   if (ENABLE_LOGS) {
@@ -467,17 +500,19 @@ const ChatGPTApp = (function () {
                   }
                   try {
                     let searchResults = JSON.parse(messages[messages.length - 1].content);
-                    let newSearchResult = searchResults.filter(function (obj) {
+                    let newSearchResult = searchResults.filter(function(obj) {
                       return obj.link !== functionArgs.url;
                     });
                     messages[messages.length - 1].content = JSON.stringify(newSearchResult);
-                  } catch (e) {
+                  }
+                  catch (e) {
                     console.log(e);
                   }
 
                   if (advancedParametersObject) {
                     return this.run(advancedParametersObject);
-                  } else {
+                  }
+                  else {
                     return this.run();
                   }
                 }
@@ -487,19 +522,21 @@ const ChatGPTApp = (function () {
               messages.push({
                 "role": "assistant",
                 "content": null,
-                "function_call": { "name": functionName, "arguments": JSON.stringify(functionArgs) }
-              });
-              messages.push(
-                {
-                  "role": "function",
+                "function_call": {
                   "name": functionName,
-                  "content": functionResponse,
+                  "arguments": JSON.stringify(functionArgs)
                 }
-              )
+              });
+              messages.push({
+                "role": "function",
+                "name": functionName,
+                "content": functionResponse,
+              })
             }
             if (advancedParametersObject) {
               return this.run(advancedParametersObject);
-            } else {
+            }
+            else {
               return this.run();
             }
 
@@ -533,10 +570,12 @@ const ChatGPTApp = (function () {
       let functionResponse = globalThis[functionName].apply(null, argsArray);
       if (functionResponse) {
         return functionResponse;
-      } else {
+      }
+      else {
         return "the function has been sucessfully executed but has nothing to return";
       }
-    } else {
+    }
+    else {
       throw Error("Function not found or not a function: " + functionName);
     }
   }
@@ -545,7 +584,8 @@ const ChatGPTApp = (function () {
     try {
       let parsedReponse = JSON.parse(response);
       return parsedReponse;
-    } catch (e) {
+    }
+    catch (e) {
       // Split the response into lines
       let lines = response.trim().split('\n');
 
@@ -558,14 +598,16 @@ const ChatGPTApp = (function () {
       for (let i = 1; i < lines.length - 1; i++) {
         let line = lines[i].trim();
         // For other lines, check for missing values or colons
-        line = line.trimEnd();  // Strip trailing white spaces
+        line = line.trimEnd(); // Strip trailing white spaces
         if (line[line.length - 1] !== ',') {
           if (line[line.length - 1] == ':') {
             // If line has the format "property":, add null,
             lines[i] = line + ' ""';
-          } else if (!line.includes(':')) {
+          }
+          else if (!line.includes(':')) {
             lines[i] = line + ': ""';
-          } else if (line[line.length - 1] !== '"') {
+          }
+          else if (line[line.length - 1] !== '"') {
             lines[i] = line + '"';
           }
         }
@@ -577,7 +619,8 @@ const ChatGPTApp = (function () {
       try {
         let parsedResponse = JSON.parse(response);
         return parsedResponse;
-      } catch (e) {
+      }
+      catch (e) {
         // If parsing still fails, log the error and return null.
         console.warn('Error parsing corrected response: ' + e.message);
         return null;
@@ -608,10 +651,9 @@ const ChatGPTApp = (function () {
     let data = JSON.parse(response.getContentText());
 
     let resultsInfo = [];
-    let resultsContent = [];
 
     if (data.items) {
-      resultsInfo = data.items.map(function (item) {
+      resultsInfo = data.items.map(function(item) {
         return {
           title: item.title,
           link: item.link,
@@ -633,16 +675,19 @@ const ChatGPTApp = (function () {
     let response;
     try {
       response = UrlFetchApp.fetch(url);
-    } catch (e) {
+    }
+    catch (e) {
       console.error(`Error fetching the URL: ${e.message}`);
-      return JSON.stringify({ error: "Failed to fetch the URL" });
+      return JSON.stringify({
+        error: "Failed to fetch the URL"
+      });
     }
     if (response.getResponseCode() == 200) {
       let pageContent = response.getContentText();
       pageContent = convertHtmlToMarkdown(pageContent);
       return pageContent;
-
-    } else {
+    }
+    else {
       return null;
     }
 
@@ -740,7 +785,7 @@ const ChatGPTApp = (function () {
      * @params {string} apiKey - Your openAI API key.
      * @returns {Chat} - A new Chat instance.
      */
-    newChat: function () {
+    newChat: function() {
       return new Chat();
     },
 
@@ -748,7 +793,7 @@ const ChatGPTApp = (function () {
      * Create a new function.
      * @returns {FunctionObject} - A new Function instance.
      */
-    newFunction: function () {
+    newFunction: function() {
       return new FunctionObject();
     },
 
@@ -756,7 +801,7 @@ const ChatGPTApp = (function () {
      * Mandatory
      * @param {string} apiKey - Your openAI API key.
      */
-    setOpenAIAPIKey: function (apiKey) {
+    setOpenAIAPIKey: function(apiKey) {
       OpenAIKey = apiKey;
     },
 
@@ -764,7 +809,7 @@ const ChatGPTApp = (function () {
      * If you want to enable browsing
      * @param {string} apiKey - Your Google API key.
      */
-    setGoogleSearchAPIKey: function (apiKey) {
+    setGoogleSearchAPIKey: function(apiKey) {
       GoogleCustomSearchAPIKey = apiKey;
     },
 
@@ -773,12 +818,15 @@ const ChatGPTApp = (function () {
      * @param {Chat} chat - your chat instance.
      * @returns {object} - the web search queries, the web pages opened and an historic of all the messages of the chat
      */
-    debug: function (chat) {
+    debug: function(chat) {
       return {
-        getWebSearchQueries: function () { return chat.toJson().webSearchQueries },
-        getWebPagesOpened: function () { return chat.toJson().webPagesOpened }
+        getWebSearchQueries: function() {
+          return chat.toJson().webSearchQueries
+        },
+        getWebPagesOpened: function() {
+          return chat.toJson().webPagesOpened
+        }
       }
     }
   }
-}
-)();
+})();

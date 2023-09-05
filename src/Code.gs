@@ -16,7 +16,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-const ChatGPTApp = (function() {
+const ChatGPTApp = (function () {
 
   let OpenAIKey = "";
   let GoogleCustomSearchAPIKey = "";
@@ -44,7 +44,7 @@ const ChatGPTApp = (function() {
        * @param {string} nameOfYourFunction - The name to set for the function.
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.setName = function(nameOfYourFunction) {
+      this.setName = function (nameOfYourFunction) {
         name = nameOfYourFunction;
         return this;
       };
@@ -54,7 +54,7 @@ const ChatGPTApp = (function() {
        * @param {string} descriptionOfYourFunction - The description to set for the function.
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.setDescription = function(descriptionOfYourFunction) {
+      this.setDescription = function (descriptionOfYourFunction) {
         description = descriptionOfYourFunction;
         return this;
       };
@@ -66,7 +66,7 @@ const ChatGPTApp = (function() {
        * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.endWithResult = function(bool) {
+      this.endWithResult = function (bool) {
         if (bool) {
           endingFunction = true;
         }
@@ -83,9 +83,8 @@ const ChatGPTApp = (function() {
        * @param {boolean} [isOptional] - To set if the argument is optional (default: false).
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.addParameter = function(name, type, description, isOptional = false) {
+      this.addParameter = function (name, type, description, isOptional = false) {
         let itemsType;
-
 
         if (String(type).includes("Array")) {
           let startIndex = type.indexOf("<") + 1;
@@ -109,7 +108,6 @@ const ChatGPTApp = (function() {
             throw Error("Please precise the type of the items contained in the array when calling addParameter. Use format Array.<itemsType> for the type parameter.");
             return
           }
-
         }
 
         argumentsInRightOrder.push(name);
@@ -126,14 +124,14 @@ const ChatGPTApp = (function() {
        * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
        * @returns {FunctionObject} - The current Function instance.
        */
-      this.onlyReturnArguments = function(bool) {
+      this.onlyReturnArguments = function (bool) {
         if (bool) {
           onlyArgs = true;
         }
         return this;
       }
 
-      this.toJSON = function() {
+      this.toJSON = function () {
         return {
           name: name,
           description: description,
@@ -152,12 +150,12 @@ const ChatGPTApp = (function() {
 
   let webSearchFunction = new FunctionObject()
     .setName("webSearch")
-    .setDescription("Perform a web search via the Google Custom Search JSON API. Returns an array of search results (including the URL, title and text snippets for each result)")
+    .setDescription("Perform a web search via the Google Custom Search JSON API. Returns an array of search results (including the URL, title and plain text snippet for each result)")
     .addParameter("q", "string", "the query for the web search.");
 
   let urlFetchFunction = new FunctionObject()
     .setName("urlFetch")
-    .setDescription("Fetch the viewable contents of a web page. It will strip HTML tags, returning just raw text.")
+    .setDescription("Fetch the viewable content of a web page. HTML tags will be stripped, returning a text-only version.")
     .addParameter("url", "string", "The URL to fetch.");
 
   /**
@@ -182,7 +180,7 @@ const ChatGPTApp = (function() {
        * @param {boolean} [system] - OPTIONAL - True if message from system, False for user. 
        * @returns {Chat} - The current Chat instance.
        */
-      this.addMessage = function(messageContent, system) {
+      this.addMessage = function (messageContent, system) {
         let role = "user";
         if (system) {
           role = "system";
@@ -199,7 +197,7 @@ const ChatGPTApp = (function() {
        * @param {FunctionObject} functionObject - The function to be added.
        * @returns {Chat} - The current Chat instance.
        */
-      this.addFunction = function(functionObject) {
+      this.addFunction = function (functionObject) {
         functions.push(functionObject);
         return this;
       };
@@ -208,7 +206,7 @@ const ChatGPTApp = (function() {
        * Get the messages of the chat.
        * returns {string[]} - The messages of the chat.
        */
-      this.getMessages = function() {
+      this.getMessages = function () {
         return JSON.stringify(messages);
       };
 
@@ -216,50 +214,50 @@ const ChatGPTApp = (function() {
        * Get the functions of the chat.
        * returns {FunctionObject[]} - The functions of the chat.
        */
-      this.getFunctions = function() {
+      this.getFunctions = function () {
         return JSON.stringify(functions);
       };
 
       /**
-       * If you only want to keep your own logs and disable those of the library
+       * Disable logs generated by this library
        * @returns {Chat} - The current Chat instance.
        */
-      this.disableLogs = function(bool) {
-          if (bool) {
-            ENABLE_LOGS = false;
-          }
-          return this;
-        },
-
-        /**
-         * OPTIONAL
-         * 
-         * Enable the chat to use a google serach engine to browse the web.
-         * @param {boolean} bool - Whether or not you wish for the option to be enabled. 
-         * @param {string} [url] - A specific web page url you want to restrict the search search to. 
-         * @returns {Chat} - The current Chat instance.
-         */
-        this.enableBrowsing = function(bool, url) {
-          if (bool) {
-            browsing = true
-          }
-          if (url) {
-            SITE_SEARCH = url;
-          }
-          return this;
-        };
+      this.disableLogs = function (bool) {
+        if (bool) {
+          ENABLE_LOGS = false;
+        }
+        return this;
+      };
 
       /**
-       * If you want to add the content of a web page to the chat
+       * OPTIONAL
+       * 
+       * Allow openAI to browse the web.
+       * @param {boolean} bool - set to true to enable browsing. 
+       * @param {string} [url] - A specific site you want to restrict the search on. 
+       * @returns {Chat} - The current Chat instance.
+       */
+      this.enableBrowsing = function (bool, url) {
+        if (bool) {
+          browsing = true;
+        }
+        if (url) {
+          SITE_SEARCH = url;
+        }
+        return this;
+      };
+
+      /**
+       * Includes the content of a web page in the prompt sent to openAI
        * @param {string} url - the url of the webpage you want to fetch
        * @returns {Chat} - The current Chat instance.
        */
-      this.addKnowledgeLink = function(url) {
+      this.addKnowledgeLink = function (url) {
         KNOWLEDGE_LINK = url;
         return this;
       };
 
-      this.toJson = function() {
+      this.toJson = function () {
         return {
           messages: messages,
           functions: functions,
@@ -280,7 +278,7 @@ const ChatGPTApp = (function() {
        * @param {{model?: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k", temperature?: number, maxToken?: number, function_call?: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {object} - the last message of the chat 
        */
-      this.run = function(advancedParametersObject) {
+      this.run = function (advancedParametersObject) {
         if (!OpenAIKey) {
           if (GoogleCustomSearchAPIKey) {
             throw Error("Careful to use setOpenAIAPIKey to set your OpenAI API key and not setGoogleSearchAPIKey.");
@@ -500,7 +498,7 @@ const ChatGPTApp = (function() {
                   }
                   try {
                     let searchResults = JSON.parse(messages[messages.length - 1].content);
-                    let newSearchResult = searchResults.filter(function(obj) {
+                    let newSearchResult = searchResults.filter(function (obj) {
                       return obj.link !== functionArgs.url;
                     });
                     messages[messages.length - 1].content = JSON.stringify(newSearchResult);
@@ -653,7 +651,7 @@ const ChatGPTApp = (function() {
     let resultsInfo = [];
 
     if (data.items) {
-      resultsInfo = data.items.map(function(item) {
+      resultsInfo = data.items.map(function (item) {
         return {
           title: item.title,
           link: item.link,
@@ -661,6 +659,7 @@ const ChatGPTApp = (function() {
         };
       }).filter(Boolean); // Remove undefined values from the results array
     }
+
     return JSON.stringify(resultsInfo);
   }
 
@@ -785,7 +784,7 @@ const ChatGPTApp = (function() {
      * @params {string} apiKey - Your openAI API key.
      * @returns {Chat} - A new Chat instance.
      */
-    newChat: function() {
+    newChat: function () {
       return new Chat();
     },
 
@@ -793,7 +792,7 @@ const ChatGPTApp = (function() {
      * Create a new function.
      * @returns {FunctionObject} - A new Function instance.
      */
-    newFunction: function() {
+    newFunction: function () {
       return new FunctionObject();
     },
 
@@ -801,7 +800,7 @@ const ChatGPTApp = (function() {
      * Mandatory
      * @param {string} apiKey - Your openAI API key.
      */
-    setOpenAIAPIKey: function(apiKey) {
+    setOpenAIAPIKey: function (apiKey) {
       OpenAIKey = apiKey;
     },
 
@@ -809,7 +808,7 @@ const ChatGPTApp = (function() {
      * If you want to enable browsing
      * @param {string} apiKey - Your Google API key.
      */
-    setGoogleSearchAPIKey: function(apiKey) {
+    setGoogleSearchAPIKey: function (apiKey) {
       GoogleCustomSearchAPIKey = apiKey;
     },
 
@@ -818,12 +817,12 @@ const ChatGPTApp = (function() {
      * @param {Chat} chat - your chat instance.
      * @returns {object} - the web search queries, the web pages opened and an historic of all the messages of the chat
      */
-    debug: function(chat) {
+    debug: function (chat) {
       return {
-        getWebSearchQueries: function() {
+        getWebSearchQueries: function () {
           return chat.toJson().webSearchQueries
         },
-        getWebPagesOpened: function() {
+        getWebPagesOpened: function () {
           return chat.toJson().webPagesOpened
         }
       }

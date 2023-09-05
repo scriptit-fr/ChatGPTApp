@@ -170,6 +170,7 @@ const ChatGPTApp = (function () {
       let temperature = 0.5;
       let maxToken = 300;
       let browsing = false;
+      let onlyRetrieveSearchResults = false;
 
       let webSearchQueries = [];
       let webPagesOpened = [];
@@ -233,13 +234,16 @@ const ChatGPTApp = (function () {
        * OPTIONAL
        * 
        * Allow openAI to browse the web.
-       * @param {boolean} bool - set to true to enable browsing. 
+       * @param {true|"only_retrieve_results"} scope - set to true to enable full browsing, or "only_retrieve_results" to search Google without opening web pages. 
        * @param {string} [url] - A specific site you want to restrict the search on. 
        * @returns {Chat} - The current Chat instance.
        */
-      this.enableBrowsing = function (bool, url) {
-        if (bool) {
+      this.enableBrowsing = function (scope, url) {
+        if (scope) {
           browsing = true;
+          if (scope == "only_retrieve_results") {
+            onlyRetrieveSearchResults = true;
+          }
         }
         if (url) {
           SITE_SEARCH = url;
@@ -326,23 +330,31 @@ const ChatGPTApp = (function () {
 
         if (browsing) {
           if (messages[messages.length - 1].role !== "function") {
-            messages.push({
-              role: "system",
-              content: "You are able to perform queries on Google search using the function webSearch, then open results and get the content of a web page using the function urlFetch."
-            });
             functions.push(webSearchFunction);
-            functions.push(urlFetchFunction);
-            let function_calling = {
+            if (onlyRetrieveSearchResults) {
+              messages.push({
+                role: "system",
+                content: "You are able to perform search queries on Google using the function webSearch and read the search results."
+              });
+            }
+            else {
+              messages.push({
+                role: "system",
+                content: "You are able to perform search queries on Google using the function webSearch, then open results and get the content of a web page using the function urlFetch."
+              });
+              functions.push(urlFetchFunction);
+            }
+            payload.function_call = {
               name: "webSearch"
             };
-            payload.function_call = function_calling;
           }
           else if (messages[messages.length - 1].role == "function" &&
-            messages[messages.length - 1].name === "webSearch") {
-            let function_calling = {
+            messages[messages.length - 1].name === "webSearch" &&
+            !onlyRetrieveSearchResults) {
+            // force openAI to call the function urlFetch after retrieving results for a particular search
+            payload.function_call = {
               name: "urlFetch"
             };
-            payload.function_call = function_calling;
           }
         }
 
@@ -362,9 +374,8 @@ const ChatGPTApp = (function () {
 
           if (advancedParametersObject &&
             advancedParametersObject.function_call &&
-            JSON.stringify(payload.function_call) !== JSON.stringify({
-              name: "urlFetch"
-            })) {
+            JSON.stringify(payload.function_call) !== '{"name":"urlFetch"}' &&
+            JSON.stringify(payload.function_call) !== '{"name":"webSearch"}') {
             // the user has set a specific function to call
             let function_calling = {
               name: advancedParametersObject.function_call
@@ -373,14 +384,14 @@ const ChatGPTApp = (function () {
           }
         }
 
-        let maxAttempts = 5;
-        let attempt = 0;
+        let maxRetries = 5;
+        let retries = 0;
         let success = false;
 
         let responseMessage;
         let endReason;
 
-        while (attempt < maxAttempts && !success) {
+        while (retries < maxRetries && !success) {
           let options = {
             'method': 'post',
             'headers': {
@@ -403,22 +414,28 @@ const ChatGPTApp = (function () {
             }
             success = true;
           }
+          else if (responseCode === 429) {
+            console.warn(`Rate limit reached when calling openAI API, will automatically retry in a few seconds.`);
+            // Rate limit reached, wait before retrying.
+            let delay = Math.pow(2, retries) * 1000; // Delay in milliseconds, starting at 1 second.
+            Utilities.sleep(delay);
+            retries++;
+          }
           else if (responseCode === 503) {
             // The server is temporarily unavailable, wait before retrying.
-            let delay = Math.pow(2, attempt) * 1000; // Delay in milliseconds, starting at 1 second.
+            let delay = Math.pow(2, retries) * 1000; // Delay in milliseconds, starting at 1 second.
             Utilities.sleep(delay);
-            attempt++;
+            retries++;
           }
           else {
             // The request failed for another reason, log the error and exit the loop.
-            console.error('Request failed with response code', responseCode);
+            console.error('Request to openAI failed with response code', responseCode);
             break;
           }
         }
 
         if (!success) {
-          console.error('Failed to call openAI API after', maxAttempts, 'attempts');
-          return "request failed";
+          throw new Error(`Failed to call openAI API after ${retries} retries.`);
         }
 
         if (ENABLE_LOGS) {

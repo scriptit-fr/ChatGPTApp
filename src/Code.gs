@@ -307,7 +307,8 @@ const ChatGPTApp = (function () {
           }
         }
 
-        if (KNOWLEDGE_LINK) {
+        if (KNOWLEDGE_LINK && !webPagesOpened.includes(KNOWLEDGE_LINK)) {
+          webPagesOpened.push(KNOWLEDGE_LINK);
           let knowledge = urlFetch(KNOWLEDGE_LINK);
           if (!knowledge) {
             throw Error(`The webpage ${KNOWLEDGE_LINK} didn't respond, please change the url of the addKnowledgeLink() function.`)
@@ -429,7 +430,10 @@ const ChatGPTApp = (function () {
           }
           else {
             // The request failed for another reason, log the error and exit the loop.
-            console.error('Request to openAI failed with response code', responseCode);
+            console.error({
+              message: `Request to openAI failed with response code ${responseCode}`,
+              response: JSON.parse(response.getContentText())
+            });
             break;
           }
         }
@@ -487,7 +491,7 @@ const ChatGPTApp = (function () {
               return functionArgs;
             }
             else {
-              let functionResponse = callFunction(functionName, functionArgs, argsOrder);
+              let functionResponse = callFunction(functionName, functionArgs, argsOrder, webPagesOpened, webSearchQueries);
               if (typeof functionResponse != "string") {
                 if (typeof functionResponse == "object") {
                   functionResponse = JSON.stringify(functionResponse);
@@ -502,14 +506,16 @@ const ChatGPTApp = (function () {
                 }
               }
               else if (functionName == "webSearch") {
-                webSearchQueries.push(functionArgs.q);
-                payload.function_call = {
-                  name: "urlFetch"
-                };
+                if (functionResponse != "You've already made this query.") {
+                  webSearchQueries.push(functionArgs.q);
+                  payload.function_call = {
+                    name: "urlFetch"
+                  };
+                }
               }
               else if (functionName == "urlFetch") {
-                webPagesOpened.push(functionArgs.url);
                 if (!functionResponse) {
+                  webPagesOpened.push(functionArgs.url);
                   if (ENABLE_LOGS) {
                     console.log("The website didn't respond, going back to the results page");
                   }
@@ -530,6 +536,9 @@ const ChatGPTApp = (function () {
                   else {
                     return this.run();
                   }
+                }
+                else if (functionResponse != "You already read this page.") {
+                  webPagesOpened.push(functionArgs.url);
                 }
                 payload.function_call = "auto";
               }
@@ -568,12 +577,24 @@ const ChatGPTApp = (function () {
     }
   }
 
-  function callFunction(functionName, jsonArgs, argsOrder) {
+  function callFunction(functionName, jsonArgs, argsOrder, webPagesOpened, webSearchQueries) {
     // Handle internal functions
     if (functionName == "webSearch") {
+      if (webSearchQueries.includes(jsonArgs.url)) {
+        if (ENABLE_LOGS) {
+          Logger.log("You've already made this query.");
+        }
+        return "You've already made this query.";
+      }
       return webSearch(jsonArgs.q);
     }
     if (functionName == "urlFetch") {
+      if (webPagesOpened.includes(jsonArgs.url)) {
+        if (ENABLE_LOGS) {
+          Logger.log("You already read this page.");
+        }
+        return "You already read this page.";
+      }
       return urlFetch(jsonArgs.url);
     }
     // Parse JSON arguments
@@ -690,7 +711,7 @@ const ChatGPTApp = (function () {
     }
     let response;
     try {
-      response = UrlFetchApp.fetch(url);
+      response = UrlFetchApp.fetch(url, options);
     }
     catch (e) {
       console.error(`Error fetching the URL: ${e.message}`);

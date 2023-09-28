@@ -582,7 +582,7 @@ const ChatGPTApp = (function () {
     if (functionName == "webSearch") {
       if (webSearchQueries.includes(jsonArgs.url)) {
         if (ENABLE_LOGS) {
-          Logger.log("You've already made this query.");
+          console.log("You've already made this query.");
         }
         return "You've already made this query.";
       }
@@ -591,7 +591,7 @@ const ChatGPTApp = (function () {
     if (functionName == "urlFetch") {
       if (webPagesOpened.includes(jsonArgs.url)) {
         if (ENABLE_LOGS) {
-          Logger.log("You already read this page.");
+          console.log("You already read this page.");
         }
         return "You already read this page.";
       }

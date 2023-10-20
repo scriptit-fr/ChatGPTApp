@@ -18,11 +18,11 @@
  */
 const ChatGPTApp = (function () {
 
-  let OpenAIKey = "";
-  let GoogleCustomSearchAPIKey = "";
-  let ENABLE_LOGS = true;
-  let SITE_SEARCH;
-  let KNOWLEDGE_LINK;
+  let openAIKey = "";
+  let googleCustomSearchAPIKey = "";
+  let restrictSearchToSite;
+  let knowledgeLink;
+  let verbose = true;
 
   /**
    * @class
@@ -168,7 +168,7 @@ const ChatGPTApp = (function () {
       let functions = [];
       let model = "gpt-3.5-turbo"; // default 
       let temperature = 0.5;
-      let maxToken = 300;
+      let max_tokens = 300;
       let browsing = false;
       let onlyRetrieveSearchResults = false;
 
@@ -225,7 +225,7 @@ const ChatGPTApp = (function () {
        */
       this.disableLogs = function (bool) {
         if (bool) {
-          ENABLE_LOGS = false;
+          verbose = false;
         }
         return this;
       };
@@ -246,7 +246,7 @@ const ChatGPTApp = (function () {
           }
         }
         if (url) {
-          SITE_SEARCH = url;
+          restrictSearchToSite = url;
         }
         return this;
       };
@@ -257,7 +257,7 @@ const ChatGPTApp = (function () {
        * @returns {Chat} - The current Chat instance.
        */
       this.addKnowledgeLink = function (url) {
-        KNOWLEDGE_LINK = url;
+        knowledgeLink = url;
         return this;
       };
 
@@ -267,7 +267,7 @@ const ChatGPTApp = (function () {
           functions: functions,
           model: model,
           temperature: temperature,
-          maxToken: maxToken,
+          max_tokens: max_tokens,
           browsing: browsing,
           webSearchQueries: webSearchQueries,
           webPagesOpened: webPagesOpened
@@ -279,19 +279,19 @@ const ChatGPTApp = (function () {
        * Sends all your messages and eventual function to chat GPT.
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {{model?: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k", temperature?: number, maxToken?: number, function_call?: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {{model?: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k", temperature?: number, max_tokens?: number, function_call?: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {object} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
-        if (!OpenAIKey) {
-          if (GoogleCustomSearchAPIKey) {
+        if (!openAIKey) {
+          if (googleCustomSearchAPIKey) {
             throw Error("Careful to use setOpenAIAPIKey to set your OpenAI API key and not setGoogleSearchAPIKey.");
           }
           else {
             throw Error("Please set your OpenAI API key using ChatGPTApp.setOpenAIAPIKey(youAPIKey)");
           }
         }
-        if (browsing && !GoogleCustomSearchAPIKey) {
+        if (browsing && !googleCustomSearchAPIKey) {
           throw Error("Please set your Google custom search API key using ChatGPTApp.setGoogleSearchAPIKey(youAPIKey)");
         }
 
@@ -302,15 +302,15 @@ const ChatGPTApp = (function () {
           if (advancedParametersObject.temperature) {
             temperature = advancedParametersObject.temperature;
           }
-          if (advancedParametersObject.maxToken) {
-            maxToken = advancedParametersObject.maxToken;
+          if (advancedParametersObject.max_tokens) {
+            max_tokens = advancedParametersObject.max_tokens;
           }
         }
 
-        if (KNOWLEDGE_LINK) {
-          let knowledge = urlFetch(KNOWLEDGE_LINK);
+        if (knowledgeLink) {
+          let knowledge = urlFetch(knowledgeLink);
           if (!knowledge) {
-            throw Error(`The webpage ${KNOWLEDGE_LINK} didn't respond, please change the url of the addKnowledgeLink() function.`)
+            throw Error(`The webpage ${knowledgeLink} didn't respond, please change the url of the addKnowledgeLink() function.`)
           }
           messages.push({
             role: "system",
@@ -321,7 +321,7 @@ const ChatGPTApp = (function () {
         let payload = {
           'messages': messages,
           'model': model,
-          'max_tokens': maxToken,
+          'max_tokens': max_tokens,
           'temperature': temperature,
           'user': Session.getTemporaryActiveUserKey()
         };
@@ -388,15 +388,13 @@ const ChatGPTApp = (function () {
         let retries = 0;
         let success = false;
 
-        let responseMessage;
-        let endReason;
-
+        let responseMessage, finish_reason;
         while (retries < maxRetries && !success) {
           let options = {
             'method': 'post',
             'headers': {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + OpenAIKey
+              'Authorization': 'Bearer ' + openAIKey
             },
             'payload': JSON.stringify(payload),
             'muteHttpExceptions': true
@@ -407,10 +405,11 @@ const ChatGPTApp = (function () {
 
           if (responseCode === 200) {
             // The request was successful, exit the loop.
-            responseMessage = JSON.parse(response.getContentText()).choices[0].message;
-            endReason = JSON.parse(response.getContentText()).choices[0].finish_reason;
-            if (endReason == "length") {
-              console.warn("OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property");
+            const parsedResponse = JSON.parse(response.getContentText());
+            responseMessage = parsedResponse.choices[0].message;
+            finish_reason = parsedResponse.choices[0].finish_reason;
+            if (finish_reason == "length") {
+              console.warn(`OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property. max_tokens: ${max_tokens}, prompt_tokens: ${parsedResponse.usage.prompt_tokens}, completion_tokens: ${parsedResponse.usage.completion_tokens}`);
             }
             success = true;
           }
@@ -438,7 +437,7 @@ const ChatGPTApp = (function () {
           throw new Error(`Failed to call openAI API after ${retries} retries.`);
         }
 
-        if (ENABLE_LOGS) {
+        if (verbose) {
           console.log('Got response from openAI API');
         }
 
@@ -473,15 +472,13 @@ const ChatGPTApp = (function () {
                   functionResponse = String(functionResponse);
                 }
               }
-              if (ENABLE_LOGS) {
+              if (verbose) {
                 console.log("Conversation stopped because end function has been called");
               }
               return responseMessage;;
-
-
             }
             else if (onlyReturnArguments) {
-              if (ENABLE_LOGS) {
+              if (verbose) {
                 console.log("Conversation stopped because argument return has been enabled - No function has been called");
               }
               return functionArgs;
@@ -496,12 +493,8 @@ const ChatGPTApp = (function () {
                   functionResponse = String(functionResponse);
                 }
               }
-              if (functionName !== "webSearch" && functionName !== "urlFetch") {
-                if (ENABLE_LOGS) {
-                  console.log(functionName + "() called by OpenAI.");
-                }
-              }
-              else if (functionName == "webSearch") {
+
+              if (functionName == "webSearch") {
                 webSearchQueries.push(functionArgs.q);
                 payload.function_call = {
                   name: "urlFetch"
@@ -510,19 +503,14 @@ const ChatGPTApp = (function () {
               else if (functionName == "urlFetch") {
                 webPagesOpened.push(functionArgs.url);
                 if (!functionResponse) {
-                  if (ENABLE_LOGS) {
-                    console.log("The website didn't respond, going back to the results page");
+                  if (verbose) {
+                    console.log("The website didn't respond, going back to search results.");
                   }
-                  try {
-                    let searchResults = JSON.parse(messages[messages.length - 1].content);
-                    let newSearchResult = searchResults.filter(function (obj) {
-                      return obj.link !== functionArgs.url;
-                    });
-                    messages[messages.length - 1].content = JSON.stringify(newSearchResult);
-                  }
-                  catch (e) {
-                    console.log(e);
-                  }
+                  let searchResults = JSON.parse(messages[messages.length - 1].content);
+                  let updatedSearchResults = searchResults.filter(function (obj) {
+                    return obj.link !== functionArgs.url;
+                  });
+                  messages[messages.length - 1].content = JSON.stringify(updatedSearchResults);
 
                   if (advancedParametersObject) {
                     return this.run(advancedParametersObject);
@@ -531,8 +519,20 @@ const ChatGPTApp = (function () {
                     return this.run();
                   }
                 }
+                // Once we've opened a web page,
+                // let the model decide on its own whether to call a function and if so which function to call.
+                // eg: model can either be satisfied with the info found in the web page or can decide to open another web page
                 payload.function_call = "auto";
+                if (verbose) {
+                  console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
+                }
               }
+              else {
+                if (verbose) {
+                  console.log(`function ${functionName}() called by OpenAI.`);
+                }
+              }
+
               // Inform the chat that the function has been called
               messages.push({
                 "role": "assistant",
@@ -546,7 +546,7 @@ const ChatGPTApp = (function () {
                 "role": "function",
                 "name": functionName,
                 "content": functionResponse,
-              })
+              });
             }
             if (advancedParametersObject) {
               return this.run(advancedParametersObject);
@@ -554,7 +554,6 @@ const ChatGPTApp = (function () {
             else {
               return this.run();
             }
-
           }
           else {
             // if no function has been found, stop here
@@ -644,20 +643,20 @@ const ChatGPTApp = (function () {
   }
 
   function webSearch(q) {
-    if (ENABLE_LOGS) {
+    if (verbose) {
       console.log(`Web search : "${q}"`);
     }
 
     const searchEngineId = "221c662683d054b63";
 
-    let url = `https://www.googleapis.com/customsearch/v1?key=${GoogleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
+    let url = `https://www.googleapis.com/customsearch/v1?key=${googleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
 
-    // If SITE_SEARCH is defined, append site-specific search parameters to the URL
-    if (SITE_SEARCH) {
-      if (ENABLE_LOGS) {
-        console.log(`Site search on ${SITE_SEARCH}`);
+    // If restrictSearchToSite is defined, append site-specific search parameters to the URL
+    if (restrictSearchToSite) {
+      if (verbose) {
+        console.log(`Site search on ${restrictSearchToSite}`);
       }
-      const site = SITE_SEARCH;
+      const site = restrictSearchToSite;
       const siteFilter = 'i';
       url += `&siteSearch=${encodeURIComponent(site)}&siteSearchFilter=${siteFilter}`;
     }
@@ -682,11 +681,8 @@ const ChatGPTApp = (function () {
 
 
   function urlFetch(url) {
-    if (ENABLE_LOGS) {
+    if (verbose) {
       console.log(`Clicked on link : ${url}`);
-    }
-    const options = {
-      'muteHttpExceptions': true
     }
     let response;
     try {
@@ -818,7 +814,7 @@ const ChatGPTApp = (function () {
      * @param {string} apiKey - Your openAI API key.
      */
     setOpenAIAPIKey: function (apiKey) {
-      OpenAIKey = apiKey;
+      openAIKey = apiKey;
     },
 
     /**
@@ -826,7 +822,7 @@ const ChatGPTApp = (function () {
      * @param {string} apiKey - Your Google API key.
      */
     setGoogleSearchAPIKey: function (apiKey) {
-      GoogleCustomSearchAPIKey = apiKey;
+      googleCustomSearchAPIKey = apiKey;
     },
 
     /**

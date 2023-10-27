@@ -428,7 +428,7 @@ const ChatGPTApp = (function () {
           }
           else {
             // The request failed for another reason, log the error and exit the loop.
-            console.error('Request to openAI failed with response code', responseCode);
+            console.error(`Request to openAI failed with response code ${responseCode} - ${response.getContentText()}`);
             break;
           }
         }

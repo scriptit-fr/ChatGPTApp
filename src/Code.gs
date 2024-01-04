@@ -279,7 +279,7 @@ const ChatGPTApp = (function () {
        * Sends all your messages and eventual function to chat GPT.
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {{model?: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k", temperature?: number, max_tokens?: number, function_call?: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {{model?: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "gpt-4-1106-preview", temperature?: number, max_tokens?: number, function_call?: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @returns {object} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
@@ -310,11 +310,11 @@ const ChatGPTApp = (function () {
         if (knowledgeLink) {
           let knowledge = urlFetch(knowledgeLink);
           if (!knowledge) {
-            throw Error(`The webpage ${knowledgeLink} didn't respond, please change the url of the addKnowledgeLink() function.`)
+            throw Error(`The webpage ${knowledgeLink} didn't respond, please change the url of the addKnowledgeLink() function.`);
           }
           messages.push({
             role: "system",
-            content: `Here's an article to help:\n\n${knowledge}`
+            content: `Information to help with your response (publicly available here: ${knowledgeLink}):\n\n${knowledge}`
           });
         }
 
@@ -648,7 +648,6 @@ const ChatGPTApp = (function () {
     }
 
     const searchEngineId = "221c662683d054b63";
-
     let url = `https://www.googleapis.com/customsearch/v1?key=${googleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
 
     // If restrictSearchToSite is defined, append site-specific search parameters to the URL
@@ -656,9 +655,7 @@ const ChatGPTApp = (function () {
       if (verbose) {
         console.log(`Site search on ${restrictSearchToSite}`);
       }
-      const site = restrictSearchToSite;
-      const siteFilter = 'i';
-      url += `&siteSearch=${encodeURIComponent(site)}&siteSearchFilter=${siteFilter}`;
+      url += `&siteSearch=${encodeURIComponent(restrictSearchToSite)}&siteSearchFilter=i`;
     }
 
     let response = UrlFetchApp.fetch(url);
@@ -702,7 +699,6 @@ const ChatGPTApp = (function () {
     else {
       return null;
     }
-
   }
 
   function convertHtmlToMarkdown(htmlString) {

@@ -2,7 +2,7 @@
  ChatGPTApp
  https://github.com/scriptit-fr/ChatGPTApp
  
- Copyright (c) 2023 Guillemine Allavena - Romain Vialard
+ Copyright (c) 2023 - 2024 Guillemine Allavena - Romain Vialard
  
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@ const ChatGPTApp = (function () {
   let restrictSearchToSite;
   let knowledgeLink;
   let verbose = true;
+
+  const noResultFromWebSearchMessage = "No results containing all your search terms were found.";
 
   /**
    * @class
@@ -331,19 +333,15 @@ const ChatGPTApp = (function () {
         if (browsing) {
           if (messages[messages.length - 1].role !== "function") {
             functions.push(webSearchFunction);
-            if (onlyRetrieveSearchResults) {
-              messages.push({
-                role: "system",
-                content: "You are able to perform search queries on Google using the function webSearch and read the search results."
-              });
-            }
-            else {
-              messages.push({
-                role: "system",
-                content: "You are able to perform search queries on Google using the function webSearch, then open results and get the content of a web page using the function urlFetch."
-              });
+            let messageContent = "You are able to perform search queries on Google using the function webSearch and read the search results.";
+            if (!onlyRetrieveSearchResults) {
+              messageContent += "Then you can select a search result and read the page content using the function urlFetch.";
               functions.push(urlFetchFunction);
             }
+            messages.push({
+              role: "system",
+              content: messageContent
+            });
             payload.function_call = {
               name: "webSearch"
             };
@@ -351,10 +349,12 @@ const ChatGPTApp = (function () {
           else if (messages[messages.length - 1].role == "function" &&
             messages[messages.length - 1].name === "webSearch" &&
             !onlyRetrieveSearchResults) {
-            // force openAI to call the function urlFetch after retrieving results for a particular search
-            payload.function_call = {
-              name: "urlFetch"
-            };
+            if (messages[messages.length - 1].content !== noResultFromWebSearchMessage) {
+              // force openAI to call the function urlFetch after retrieving results for a particular search
+              payload.function_call = {
+                name: "urlFetch"
+              };
+            }
           }
         }
 
@@ -496,9 +496,6 @@ const ChatGPTApp = (function () {
 
               if (functionName == "webSearch") {
                 webSearchQueries.push(functionArgs.q);
-                payload.function_call = {
-                  name: "urlFetch"
-                };
               }
               else if (functionName == "urlFetch") {
                 webPagesOpened.push(functionArgs.url);
@@ -520,8 +517,8 @@ const ChatGPTApp = (function () {
                   }
                 }
                 // Once we've opened a web page,
-                // let the model decide on its own whether to call a function and if so which function to call.
-                // eg: model can either be satisfied with the info found in the web page or can decide to open another web page
+                // let the model decide what to do
+                // eg: model can either be satisfied with the info found in the web page or decide to open another web page
                 payload.function_call = "auto";
                 if (verbose) {
                   console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
@@ -643,10 +640,6 @@ const ChatGPTApp = (function () {
   }
 
   function webSearch(q) {
-    if (verbose) {
-      console.log(`Web search : "${q}"`);
-    }
-
     const searchEngineId = "221c662683d054b63";
     let url = `https://www.googleapis.com/customsearch/v1?key=${googleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
 
@@ -658,21 +651,26 @@ const ChatGPTApp = (function () {
       url += `&siteSearch=${encodeURIComponent(restrictSearchToSite)}&siteSearchFilter=i`;
     }
 
-    let response = UrlFetchApp.fetch(url);
-    let data = JSON.parse(response.getContentText());
-
-    let resultsInfo = [];
-
-    if (data.items) {
-      resultsInfo = data.items.map(function (item) {
-        return {
-          title: item.title,
-          link: item.link,
-          snippet: item.snippet
-        };
-      }).filter(Boolean); // Remove undefined values from the results array
+    const urlfetchResp = UrlFetchApp.fetch(url);
+    const searchResult = JSON.parse(urlfetchResp.getContentText());
+    const nbOfResults = searchResult.searchInformation.totalResults;
+    if (verbose) {
+      console.log(`Web search : "${q}" - ${nbOfResults} results`);
     }
 
+    if (!searchResult.items || !searchResult.items.length) {
+      return noResultFromWebSearchMessage;
+    }
+
+    let resultsInfo = [];
+    // https://developers.google.com/custom-search/v1/reference/rest/v1/Search?hl=en#Result
+    resultsInfo = searchResult.items.map(function (item) {
+      return {
+        title: item.title,
+        link: item.link,
+        snippet: item.snippet
+      };
+    }).filter(Boolean); // Remove undefined values from the results array
     return JSON.stringify(resultsInfo);
   }
 

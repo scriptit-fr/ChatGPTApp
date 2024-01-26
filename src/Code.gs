@@ -2,7 +2,7 @@
  ChatGPTApp
  https://github.com/scriptit-fr/ChatGPTApp
  
- Copyright (c) 2023 - 2024 Guillemine Allavena - Romain Vialard
+ Copyright (c) 2023 Guillemine Allavena - Romain Vialard
  
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -20,11 +20,12 @@ const ChatGPTApp = (function () {
 
   let openAIKey = "";
   let googleCustomSearchAPIKey = "";
-  let restrictSearchToSite;
+  let restrictSearch;
   let knowledgeLink;
   let verbose = true;
 
-  const noResultFromWebSearchMessage = "No results containing all your search terms were found.";
+  const noResultFromWebSearchMessage = `Your search did not match any documents. 
+  Try with different, more general or fewer keywords.`;
 
   /**
    * @class
@@ -237,18 +238,18 @@ const ChatGPTApp = (function () {
        * 
        * Allow openAI to browse the web.
        * @param {true|"only_retrieve_results"} scope - set to true to enable full browsing, or "only_retrieve_results" to search Google without opening web pages. 
-       * @param {string} [url] - A specific site you want to restrict the search on. 
+       * @param {string} [urlOrsearchEngineId] - A specific site you want to restrict the search on or a Search engine ID. 
        * @returns {Chat} - The current Chat instance.
        */
-      this.enableBrowsing = function (scope, url) {
+      this.enableBrowsing = function (scope, urlOrsearchEngineId) {
         if (scope) {
           browsing = true;
           if (scope == "only_retrieve_results") {
             onlyRetrieveSearchResults = true;
           }
         }
-        if (url) {
-          restrictSearchToSite = url;
+        if (urlOrsearchEngineId) {
+          restrictSearch = urlOrsearchEngineId;
         }
         return this;
       };
@@ -281,7 +282,11 @@ const ChatGPTApp = (function () {
        * Sends all your messages and eventual function to chat GPT.
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {{model?: "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "gpt-4-1106-preview", temperature?: number, max_tokens?: number, function_call?: string}} [advancedParametersObject] - OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {Object} [advancedParametersObject] OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {"gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "gpt-4-1106-preview" | "gpt-4-turbo-preview"} [advancedParametersObject.model]
+       * @param {number} [advancedParametersObject.temperature]
+       * @param {number} [advancedParametersObject.max_tokens]
+       * @param {string} [advancedParametersObject.function_call]
        * @returns {object} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
@@ -333,9 +338,9 @@ const ChatGPTApp = (function () {
         if (browsing) {
           if (messages[messages.length - 1].role !== "function") {
             functions.push(webSearchFunction);
-            let messageContent = "You are able to perform search queries on Google using the function webSearch and read the search results.";
+            let messageContent = `You are able to perform search queries on Google using the function webSearch and read the search results. `;
             if (!onlyRetrieveSearchResults) {
-              messageContent += "Then you can select a search result and read the page content using the function urlFetch.";
+              messageContent += "Then you can select a search result and read the page content using the function urlFetch. ";
               functions.push(urlFetchFunction);
             }
             messages.push({
@@ -372,8 +377,7 @@ const ChatGPTApp = (function () {
             payload.function_call = 'auto';
           }
 
-          if (advancedParametersObject &&
-            advancedParametersObject.function_call &&
+          if (advancedParametersObject?.function_call &&
             JSON.stringify(payload.function_call) !== '{"name":"urlFetch"}' &&
             JSON.stringify(payload.function_call) !== '{"name":"webSearch"}') {
             // the user has set a specific function to call
@@ -640,38 +644,55 @@ const ChatGPTApp = (function () {
   }
 
   function webSearch(q) {
-    const searchEngineId = "221c662683d054b63";
-    let url = `https://www.googleapis.com/customsearch/v1?key=${googleCustomSearchAPIKey}&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
+    // https://programmablesearchengine.google.com/controlpanel/overview?cx=221c662683d054b63
+    let searchEngineId = "221c662683d054b63";
+    let url = `https://www.googleapis.com/customsearch/v1?key=${googleCustomSearchAPIKey}`;
 
-    // If restrictSearchToSite is defined, append site-specific search parameters to the URL
-    if (restrictSearchToSite) {
-      if (verbose) {
-        console.log(`Site search on ${restrictSearchToSite}`);
+    // If restrictSearch is defined, check wether to restrict to a specific site or use a specific Search Engine
+    if (restrictSearch) {
+      if (restrictSearch.includes('.')) {
+        // Search restricted to specific site
+        if (verbose) {
+          console.log(`Site search on ${restrictSearch}`);
+        }
+        url += `&siteSearch=${encodeURIComponent(restrictSearch)}&siteSearchFilter=i`;
       }
-      url += `&siteSearch=${encodeURIComponent(restrictSearchToSite)}&siteSearchFilter=i`;
+      else {
+        // Use the desired Search Engine
+        // https://programmablesearchengine.google.com/controlpanel/all
+        searchEngineId = restrictSearch;
+      }
     }
+    url += `&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
 
     const urlfetchResp = UrlFetchApp.fetch(url);
-    const searchResult = JSON.parse(urlfetchResp.getContentText());
-    const nbOfResults = searchResult.searchInformation.totalResults;
+    const resp = JSON.parse(urlfetchResp.getContentText());
+
+    let searchResults;
+    if (!resp.items?.length) {
+      searchResults = noResultFromWebSearchMessage;
+    }
+    else {
+      // https://developers.google.com/custom-search/v1/reference/rest/v1/Search?hl=en#Result
+      searchResults = JSON.stringify(resp.items.map(function (item) {
+        return {
+          title: item.title,
+          link: item.link,
+          snippet: item.snippet
+        };
+        // filter to remove undefined values from the results array
+      }).filter(Boolean));
+    }
+
+    const nbOfResults = resp.searchInformation.totalResults;
     if (verbose) {
-      console.log(`Web search : "${q}" - ${nbOfResults} results`);
+      Logger.log({
+        message: `Web search : "${q}" - ${nbOfResults} results`,
+        searchResults: searchResults
+      });
     }
 
-    if (!searchResult.items || !searchResult.items.length) {
-      return noResultFromWebSearchMessage;
-    }
-
-    let resultsInfo = [];
-    // https://developers.google.com/custom-search/v1/reference/rest/v1/Search?hl=en#Result
-    resultsInfo = searchResult.items.map(function (item) {
-      return {
-        title: item.title,
-        link: item.link,
-        snippet: item.snippet
-      };
-    }).filter(Boolean); // Remove undefined values from the results array
-    return JSON.stringify(resultsInfo);
+    return searchResults;
   }
 
 

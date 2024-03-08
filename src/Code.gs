@@ -323,6 +323,7 @@ const ChatGPTApp = (function () {
             role: "system",
             content: `Information to help with your response (publicly available here: ${knowledgeLink}):\n\n${knowledge}`
           });
+          knowledgeLink = null; // so it won't be added several time
         }
 
         let payload = {

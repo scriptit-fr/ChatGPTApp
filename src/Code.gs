@@ -168,13 +168,13 @@ const ChatGPTApp = (function () {
     .setName("getImageDescription")
     .setDescription("To retrieve the description of an image.")
     .addParameter("imageUrl", "string", "The URL of the image.")
-    .addParameter("fidelity", "string", "Either \"low\" or \"high\", default \"low\" is sufficient in most cases.");
+    .addParameter("fidelity", `"low" | "high"`, `default "low" (sufficient in most cases)`, isOptional = true);
 
-  let getSpreadsheetContentFunction = new FunctionObject()
-    .setName("getSpreadsheetContent")
-    .setDescription("To access the content of a Spreadsheet")
+  let getDataFromGoogleSheetsFunction = new FunctionObject()
+    .setName("getDataFromGoogleSheets")
+    .setDescription("To retrieve all the data contained in a Spreadsheet or a sheet.")
     .addParameter("spreadsheetId", "string", "The ID of the spreadsheet")
-    .addParameter("sheetName", "string", `The name of a specific sheet to access. Use "all" to access every sheet`);
+    .addParameter("sheetName", "string", `The name of a specific sheet to access.`, isOptional = true);
 
   /**
    * @class
@@ -431,14 +431,14 @@ const ChatGPTApp = (function () {
         }
 
         if (vision) {
-          // Avoid hallucination & duplicate image description 
+          // Avoid hallucination & duplicated image description 
           if (!messages[messages.length - 1].content.includes("An image was given, here is the description:")) {
             functions.push(imageDescriptionFunction);
           }
         }
 
         if (googleSheetAccess) {
-          functions.push(getSpreadsheetContentFunction);
+          functions.push(getDataFromGoogleSheetsFunction);
         }
 
         if (functions.length >> 0) {
@@ -661,10 +661,18 @@ const ChatGPTApp = (function () {
       return urlFetch(jsonArgs.url);
     }
     if (functionName == "getImageDescription") {
-      return getImageDescription(jsonArgs.imageUrl, jsonArgs.fidelity);
+      if (jsonArgs.fidelity) {
+        return getImageDescription(jsonArgs.imageUrl, jsonArgs.fidelity);
+      } else {
+        return getImageDescription(jsonArgs.imageUrl);
+      }
     }
-    if (functionName == "getSpreadsheetContent") {
-      return getSpreadsheetContent(jsonArgs.spreadsheetId, jsonArgs.sheetName);
+    if (functionName == "getDataFromGoogleSheets") {
+      if (jsonArgs.sheetName) {
+        return getDataFromGoogleSheets(jsonArgs.spreadsheetId, jsonArgs.sheetName);
+      } else {
+        return getDataFromGoogleSheets(jsonArgs.spreadsheetId);
+      }
     }
     // Parse JSON arguments
     var argsObj = jsonArgs;
@@ -803,11 +811,9 @@ const ChatGPTApp = (function () {
     if (response.getResponseCode() == 200) {
       let pageContent = response.getContentText();
       pageContent = convertHtmlToMarkdown(pageContent);
-      Logger.log(pageContent)
       return pageContent;
     }
     else {
-      Logger.log("no response")
       return null;
     }
   }
@@ -815,7 +821,7 @@ const ChatGPTApp = (function () {
   function getImageDescription(imageUrl, fidelity) {
 
     if (!fidelity) {
-      let fidelity = "low";
+      fidelity = "low";
     }
 
     let imageMessage = [{
@@ -835,26 +841,23 @@ const ChatGPTApp = (function () {
       ]
     }];
 
-    Logger.log(imageMessage);
-
     let payload = {
       'messages': imageMessage,
       'model': "gpt-4-vision-preview",
       'max_tokens': 1000,
-      'temperature': 0.5,
       'user': Session.getTemporaryActiveUserKey()
     };
 
     let responseMessage = callOpenAIApi(payload);
 
-    return responseMessage
+    return responseMessage;
   }
 
-  function getSpreadsheetContent(spreadsheetId, sheetName) {
+  function getDataFromGoogleSheets(spreadsheetId, sheetName) {
     var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
     var result = {};
 
-    if (sheetName !== "all") {
+    if (sheetName) {
       // Fetch content of the specified sheet
       var sheet = spreadsheet.getSheetByName(sheetName);
       if (sheet) {
@@ -937,8 +940,8 @@ const ChatGPTApp = (function () {
     // Preformatted text
     htmlString = htmlString.replace(/<pre>(.*?)<\/pre>/g, '```\n$1\n```');
 
-    // Regular expression to match image tags with specified pattern
-    const imgRegex = /<img src="(https:\/\/s3\.amazonaws\.com\/helpscout\.net\/docs\/assets\/60b60df62246b50b7f390f43\/images\/[^"]+)" alt="(.*?)" ?\/?>/g;
+    // Images
+    const imgRegex = /<img src="(.+?)" alt="(.*?)" ?\/?>/g;
 
     // Loop through all image matches
     let match;
@@ -946,7 +949,7 @@ const ChatGPTApp = (function () {
       const imageUrl = match[1]; // Get image URL
       const altText = match[2]; // Get alt text
 
-      const replacement = `Image URL: ${imageUrl} altText: ${altText}`; // If description is available, use it, otherwise use alt text
+      const replacement = `Image URL: ${imageUrl} altText: ${altText}`; 
 
       // Replace the image tag with the link and the alt text
       htmlString = htmlString.replace(match[0], replacement);

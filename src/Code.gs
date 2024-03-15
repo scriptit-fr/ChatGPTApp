@@ -166,7 +166,7 @@ const ChatGPTApp = (function () {
 
   let imageDescriptionFunction = new FunctionObject()
     .setName("getImageDescription")
-    .setDescription("The retrieve the description of an image.")
+    .setDescription("To retrieve the description of an image.")
     .addParameter("imageUrl", "string", "The URL of the image.")
     .addParameter("fidelity", "string", "Either \"low\" or \"high\", default \"low\" is sufficient in most cases.");
 
@@ -175,7 +175,6 @@ const ChatGPTApp = (function () {
     .setDescription("To access the content of a Spreadsheet")
     .addParameter("spreadsheetId", "string", "The ID of the spreadsheet")
     .addParameter("sheetName", "string", `The name of a specific sheet to access. Use "all" to access every sheet`);
-  // .addParameter(`filter", "string", "A filter to apply to the content. Describe in natural language how you want to filter the data in order to only retrieve the minimum information"`)
 
   /**
    * @class
@@ -226,7 +225,7 @@ const ChatGPTApp = (function () {
       };
 
       /**
-      * Add an image to the chat.
+      * Add an image to the chat. Will automatically get the description from gpt-4-vision-preview model and add the description as a message. 
       * @param {string} imageUrl - The URL of the image to add.
       * @param {string} fidelity - The level of fidelity for the image description
       * @returns {Chat} - The current Chat instance.
@@ -239,7 +238,7 @@ const ChatGPTApp = (function () {
         messages.push(
           {
             role: "system",
-            content: `An image was given, here is the description:\n${description}` // don't give link, function calling calls it
+            content: `An image was given, here is the description:\n${description}` // don't give link, function calling calls it otherwise
           }
         )
         return this;
@@ -310,7 +309,7 @@ const ChatGPTApp = (function () {
       /**
        * OPTIONAL
        * 
-       * Allow openAI to acces Google Spreadsheets.
+       * Allow openAI to access Google Spreadsheets.
        * @param {true} scope - set to true to enable vision. 
        * @returns {Chat} - The current Chat instance.
        */
@@ -382,7 +381,6 @@ const ChatGPTApp = (function () {
         }
 
         if (knowledgeLink) {
-          Logger.log(`Knowledge link : ${knowledgeLink}`)
           let knowledge = urlFetch(knowledgeLink);
           if (!knowledge) {
             throw Error(`The webpage ${knowledgeLink} didn't respond, please change the url of the addKnowledgeLink() function.`);
@@ -433,6 +431,7 @@ const ChatGPTApp = (function () {
         }
 
         if (vision) {
+          // Avoid hallucination & duplicate image description 
           if (!messages[messages.length - 1].content.includes("An image was given, here is the description:")) {
             functions.push(imageDescriptionFunction);
           }
@@ -527,10 +526,6 @@ const ChatGPTApp = (function () {
               }
               else if (functionName == "urlFetch") {
                 webPagesOpened.push(functionArgs.url);
-                if (knowledgeLink) {
-                  messages.pop();
-                  knowledgeLink = null;
-                }
                 if (!functionResponse) {
                   if (verbose) {
                     console.log("The website didn't respond, going back to search results.");

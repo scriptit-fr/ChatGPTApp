@@ -16,12 +16,15 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
+
+
 const ChatGPTApp = (function () {
 
   let openAIKey = "";
+
   let googleCustomSearchAPIKey = "";
   let restrictSearch;
-  let knowledgeLink;
+
   let verbose = true;
 
   const noResultFromWebSearchMessage = `Your search did not match any documents. 
@@ -161,6 +164,18 @@ const ChatGPTApp = (function () {
     .setDescription("Fetch the viewable content of a web page. HTML tags will be stripped, returning a text-only version.")
     .addParameter("url", "string", "The URL to fetch.");
 
+  let imageDescriptionFunction = new FunctionObject()
+    .setName("getImageDescription")
+    .setDescription("To retrieve the description of an image.")
+    .addParameter("imageUrl", "string", "The URL of the image.")
+    .addParameter("fidelity", `"low" | "high"`, `default "low" (sufficient in most cases)`, isOptional = true);
+
+  let getDataFromGoogleSheetsFunction = new FunctionObject()
+    .setName("getDataFromGoogleSheets")
+    .setDescription("To retrieve all the data contained in a Spreadsheet or a sheet.")
+    .addParameter("spreadsheetId", "string", "The ID of the spreadsheet")
+    .addParameter("sheetName", "string", `The name of a specific sheet to access.`, isOptional = true);
+
   /**
    * @class
    * Class representing a chat.
@@ -173,7 +188,10 @@ const ChatGPTApp = (function () {
       let temperature = 0.5;
       let max_tokens = 300;
       let browsing = false;
+      let googleSheetAccess = false;
+      let vision = false;
       let onlyRetrieveSearchResults = false;
+      let knowledgeLink;
 
       let webSearchQueries = [];
       let webPagesOpened = [];
@@ -203,6 +221,26 @@ const ChatGPTApp = (function () {
        */
       this.addFunction = function (functionObject) {
         functions.push(functionObject);
+        return this;
+      };
+
+      /**
+      * Add an image to the chat. Will automatically get the description from gpt-4-vision-preview model and add the description as a message. 
+      * @param {string} imageUrl - The URL of the image to add.
+      * @param {"low" | "high"} [fidelity] OPTIONAL - The level of fidelity for the image description
+      * @returns {Chat} - The current Chat instance.
+      */
+      this.addImage = function (imageUrl, fidelity) {
+        if (!fidelity) {
+          fidelity = "low";
+        }
+        let description = getImageDescription(imageUrl, fidelity);
+        messages.push(
+          {
+            role: "system",
+            content: `An image was given, here is the description:\n${description}` // don't give link, function calling calls it otherwise
+          }
+        )
         return this;
       };
 
@@ -253,6 +291,34 @@ const ChatGPTApp = (function () {
         }
         return this;
       };
+
+      /**
+       * OPTIONAL
+       * 
+       * Allow openAI to call vision model.
+       * @param {true} scope - set to true to enable vision. 
+       * @returns {Chat} - The current Chat instance.
+       */
+      this.enableVision = function (scope) {
+        if (scope) {
+          vision = true;
+        }
+        return this;
+      };
+
+      /**
+       * OPTIONAL
+       * 
+       * Allow openAI to access Google Spreadsheets.
+       * @param {true} scope - set to true to enable vision. 
+       * @returns {Chat} - The current Chat instance.
+       */
+      this.enableGoogleSheetsAccess = function (scope) {
+        if (scope) {
+          googleSheetAccess = true;
+        }
+        return this;
+      }
 
       /**
        * Includes the content of a web page in the prompt sent to openAI
@@ -323,7 +389,7 @@ const ChatGPTApp = (function () {
             role: "system",
             content: `Information to help with your response (publicly available here: ${knowledgeLink}):\n\n${knowledge}`
           });
-          knowledgeLink = null; // so it won't be added several time
+          knowledgeLink = null;
         }
 
         let payload = {
@@ -364,6 +430,17 @@ const ChatGPTApp = (function () {
           }
         }
 
+        if (vision) {
+          // Avoid hallucination & duplicated image description 
+          if (!messages[messages.length - 1].content.includes("An image was given, here is the description:")) {
+            functions.push(imageDescriptionFunction);
+          }
+        }
+
+        if (googleSheetAccess) {
+          functions.push(getDataFromGoogleSheetsFunction);
+        }
+
         if (functions.length >> 0) {
           // the user has added functions, enable function calling
           functionCalling = true;
@@ -389,62 +466,7 @@ const ChatGPTApp = (function () {
           }
         }
 
-        let maxRetries = 5;
-        let retries = 0;
-        let success = false;
-
-        let responseMessage, finish_reason;
-        while (retries < maxRetries && !success) {
-          let options = {
-            'method': 'post',
-            'headers': {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + openAIKey
-            },
-            'payload': JSON.stringify(payload),
-            'muteHttpExceptions': true
-          };
-
-          let response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
-          let responseCode = response.getResponseCode();
-
-          if (responseCode === 200) {
-            // The request was successful, exit the loop.
-            const parsedResponse = JSON.parse(response.getContentText());
-            responseMessage = parsedResponse.choices[0].message;
-            finish_reason = parsedResponse.choices[0].finish_reason;
-            if (finish_reason == "length") {
-              console.warn(`OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property. max_tokens: ${max_tokens}, prompt_tokens: ${parsedResponse.usage.prompt_tokens}, completion_tokens: ${parsedResponse.usage.completion_tokens}`);
-            }
-            success = true;
-          }
-          else if (responseCode === 429) {
-            console.warn(`Rate limit reached when calling openAI API, will automatically retry in a few seconds.`);
-            // Rate limit reached, wait before retrying.
-            let delay = Math.pow(2, retries) * 1000; // Delay in milliseconds, starting at 1 second.
-            Utilities.sleep(delay);
-            retries++;
-          }
-          else if (responseCode === 503) {
-            // The server is temporarily unavailable, wait before retrying.
-            let delay = Math.pow(2, retries) * 1000; // Delay in milliseconds, starting at 1 second.
-            Utilities.sleep(delay);
-            retries++;
-          }
-          else {
-            // The request failed for another reason, log the error and exit the loop.
-            console.error(`Request to openAI failed with response code ${responseCode} - ${response.getContentText()}`);
-            break;
-          }
-        }
-
-        if (!success) {
-          throw new Error(`Failed to call openAI API after ${retries} retries.`);
-        }
-
-        if (verbose) {
-          console.log('Got response from openAI API');
-        }
+        let responseMessage = callOpenAIApi(payload);
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
@@ -569,6 +591,67 @@ const ChatGPTApp = (function () {
     }
   }
 
+  function callOpenAIApi(payload) {
+    let maxRetries = 5;
+    let retries = 0;
+    let success = false;
+
+    let responseMessage, finish_reason;
+    while (retries < maxRetries && !success) {
+      let options = {
+        'method': 'post',
+        'headers': {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + openAIKey
+        },
+        'payload': JSON.stringify(payload),
+        'muteHttpExceptions': true
+      };
+
+      let response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
+      let responseCode = response.getResponseCode();
+
+      if (responseCode === 200) {
+        // The request was successful, exit the loop.
+        const parsedResponse = JSON.parse(response.getContentText());
+        responseMessage = parsedResponse.choices[0].message;
+        finish_reason = parsedResponse.choices[0].finish_reason;
+        if (finish_reason == "length") {
+          console.warn(`OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property. max_tokens: ${max_tokens}, prompt_tokens: ${parsedResponse.usage.prompt_tokens}, completion_tokens: ${parsedResponse.usage.completion_tokens}`);
+        }
+        success = true;
+      }
+      else if (responseCode === 429) {
+        console.warn(`Rate limit reached when calling openAI API, will automatically retry in a few seconds.`);
+        // Rate limit reached, wait before retrying.
+        let delay = Math.pow(2, retries) * 1000; // Delay in milliseconds, starting at 1 second.
+        Utilities.sleep(delay);
+        retries++;
+      }
+      else if (responseCode === 503) {
+        // The server is temporarily unavailable, wait before retrying.
+        let delay = Math.pow(2, retries) * 1000; // Delay in milliseconds, starting at 1 second.
+        Utilities.sleep(delay);
+        retries++;
+      }
+      else {
+        // The request failed for another reason, log the error and exit the loop.
+        console.error(`Request to openAI failed with response code ${responseCode} - ${response.getContentText()}`);
+        break;
+      }
+    }
+
+    if (!success) {
+      throw new Error(`Failed to call openAI API after ${retries} retries.`);
+    }
+
+    if (verbose) {
+      console.log('Got response from openAI API');
+    }
+
+    return responseMessage;
+  }
+
   function callFunction(functionName, jsonArgs, argsOrder) {
     // Handle internal functions
     if (functionName == "webSearch") {
@@ -576,6 +659,20 @@ const ChatGPTApp = (function () {
     }
     if (functionName == "urlFetch") {
       return urlFetch(jsonArgs.url);
+    }
+    if (functionName == "getImageDescription") {
+      if (jsonArgs.fidelity) {
+        return getImageDescription(jsonArgs.imageUrl, jsonArgs.fidelity);
+      } else {
+        return getImageDescription(jsonArgs.imageUrl);
+      }
+    }
+    if (functionName == "getDataFromGoogleSheets") {
+      if (jsonArgs.sheetName) {
+        return getDataFromGoogleSheets(jsonArgs.spreadsheetId, jsonArgs.sheetName);
+      } else {
+        return getDataFromGoogleSheets(jsonArgs.spreadsheetId);
+      }
     }
     // Parse JSON arguments
     var argsObj = jsonArgs;
@@ -588,7 +685,7 @@ const ChatGPTApp = (function () {
         return functionResponse;
       }
       else {
-        return "the function has been sucessfully executed but has nothing to return";
+        return "The function has been sucessfully executed but has nothing to return";
       }
     }
     else {
@@ -721,6 +818,65 @@ const ChatGPTApp = (function () {
     }
   }
 
+  function getImageDescription(imageUrl, fidelity) {
+
+    if (!fidelity) {
+      fidelity = "low";
+    }
+
+    let imageMessage = [{
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "What is the content of this image ? Focus on important element." // Give a more human friendly description than the initial example prompt given by OpenAI
+        },
+        {
+          type: "image_url",
+          image_url: {
+            url: imageUrl,
+            detail: fidelity
+          }
+        },
+      ]
+    }];
+
+    let payload = {
+      'messages': imageMessage,
+      'model': "gpt-4-vision-preview",
+      'max_tokens': 1000,
+      'user': Session.getTemporaryActiveUserKey()
+    };
+
+    let responseMessage = callOpenAIApi(payload);
+
+    return responseMessage;
+  }
+
+  function getDataFromGoogleSheets(spreadsheetId, sheetName) {
+    var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    var result = {};
+
+    if (sheetName) {
+      // Fetch content of the specified sheet
+      var sheet = spreadsheet.getSheetByName(sheetName);
+      if (sheet) {
+        result[sheetName] = sheet.getDataRange().getValues();
+
+      } else {
+        result.error = "Sheet with specified name not found.";
+      }
+    } else {
+      // Fetch content of every sheet
+      var sheets = spreadsheet.getSheets();
+      sheets.forEach(function (sheet) {
+        result[sheet.getName()] = sheet.getDataRange().getValues();
+      });
+    }
+
+    return result;
+  }
+
   function convertHtmlToMarkdown(htmlString) {
     // Remove <script> tags and their content
     htmlString = htmlString.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
@@ -783,8 +939,9 @@ const ChatGPTApp = (function () {
     htmlString = htmlString.replace(/<code>(.*?)<\/code>/g, '`$1`');
     // Preformatted text
     htmlString = htmlString.replace(/<pre>(.*?)<\/pre>/g, '```\n$1\n```');
-    // Images with URLs as sources
-    htmlString = htmlString.replace(/<img src="(.+?)" alt="(.*?)" ?\/?>/g, '[Image here]');
+
+    // Images - Updated to use Markdown syntax
+    htmlString = htmlString.replace(/<img src="(.+?)" alt="(.*?)" ?\/?>/g, '![$2]($1)'); // Markdown syntax for images is ![alt text](image URL).
 
     // Remove remaining HTML tags
     htmlString = htmlString.replace(/<[^>]*>/g, '');

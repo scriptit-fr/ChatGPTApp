@@ -632,8 +632,6 @@ const ChatGPTApp = (function () {
         'muteHttpExceptions': true
       };
 
-      Logger.log(options)
-
       let response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
       let responseCode = response.getResponseCode();
 

@@ -183,7 +183,7 @@ const ChatGPTApp = (function () {
   class Chat {
     constructor() {
       let messages = [];
-      let functions = [];
+      let tools = [];
       let model = "gpt-3.5-turbo"; // default 
       let temperature = 0.5;
       let max_tokens = 300;
@@ -220,7 +220,10 @@ const ChatGPTApp = (function () {
        * @returns {Chat} - The current Chat instance.
        */
       this.addFunction = function (functionObject) {
-        functions.push(functionObject);
+        tools.push({
+          type: "function",
+          function: functionObject
+        });
         return this;
       };
 
@@ -253,11 +256,11 @@ const ChatGPTApp = (function () {
       };
 
       /**
-       * Get the functions of the chat.
-       * returns {FunctionObject[]} - The functions of the chat.
+       * Get the tools of the chat.
+       * returns {FunctionObject[]} - The tools of the chat.
        */
-      this.getFunctions = function () {
-        return JSON.stringify(functions);
+      this.getTools = function () {
+        return JSON.stringify(tools);
       };
 
       /**
@@ -333,7 +336,7 @@ const ChatGPTApp = (function () {
       this.toJson = function () {
         return {
           messages: messages,
-          functions: functions,
+          tools: tools,
           model: model,
           temperature: temperature,
           max_tokens: max_tokens,
@@ -352,7 +355,7 @@ const ChatGPTApp = (function () {
        * @param {"gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "gpt-4-1106-preview" | "gpt-4-turbo-preview"} [advancedParametersObject.model]
        * @param {number} [advancedParametersObject.temperature]
        * @param {number} [advancedParametersObject.max_tokens]
-       * @param {string} [advancedParametersObject.function_call]
+       * @param {string} [advancedParametersObject.tool_choice]
        * @returns {object} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
@@ -402,20 +405,29 @@ const ChatGPTApp = (function () {
 
         let functionCalling = false;
 
+
+
         if (browsing) {
           if (messages[messages.length - 1].role !== "function") {
-            functions.push(webSearchFunction);
+            tools.push({
+              type: "function",
+              function: webSearchFunction
+            });
             let messageContent = `You are able to perform search queries on Google using the function webSearch and read the search results. `;
             if (!onlyRetrieveSearchResults) {
               messageContent += "Then you can select a search result and read the page content using the function urlFetch. ";
-              functions.push(urlFetchFunction);
+              tools.push({
+                type: "function",
+                function: urlFetchFunction
+              });
             }
             messages.push({
               role: "system",
               content: messageContent
             });
-            payload.function_call = {
-              name: "webSearch"
+            payload.tool_choice = {
+              type: "function",
+              function: { name: "webSearch" }
             };
           }
           else if (messages[messages.length - 1].role == "function" &&
@@ -423,8 +435,9 @@ const ChatGPTApp = (function () {
             !onlyRetrieveSearchResults) {
             if (messages[messages.length - 1].content !== noResultFromWebSearchMessage) {
               // force openAI to call the function urlFetch after retrieving results for a particular search
-              payload.function_call = {
-                name: "urlFetch"
+              payload.tool_choice = {
+                type: "function",
+                function: { name: "urlFetch" }
               };
             }
           }
@@ -433,36 +446,47 @@ const ChatGPTApp = (function () {
         if (vision) {
           // Avoid hallucination & duplicated image description 
           if (!messages[messages.length - 1].content.includes("An image was given, here is the description:")) {
-            functions.push(imageDescriptionFunction);
+            tools.push({
+              type: "function",
+              function: imageDescriptionFunction
+            });
           }
         }
 
         if (googleSheetAccess) {
-          functions.push(getDataFromGoogleSheetsFunction);
+          tools.push({
+            type: "function",
+            function: getDataFromGoogleSheetsFunction
+          });
         }
 
-        if (functions.length >> 0) {
+        if (tools.length >> 0) {
           // the user has added functions, enable function calling
-          functionCalling = true;
-          let payloadFunctions = Object.keys(functions).map(f => ({
-            name: functions[f].toJSON().name,
-            description: functions[f].toJSON().description,
-            parameters: functions[f].toJSON().parameters
-          }));
-          payload.functions = payloadFunctions;
 
-          if (!payload.function_call) {
-            payload.function_call = 'auto';
+
+          functionCalling = true;
+          let payloadTools = Object.keys(tools).map(t => ({
+            type: "function",
+            function: {
+              name: tools[t].function.toJSON().name,
+              description: tools[t].function.toJSON().description,
+              parameters: tools[t].function.toJSON().parameters
+            }
+          }));
+          payload.tools = payloadTools;
+
+          if (!payload.tool_choice) {
+            payload.tool_choice = 'auto';
           }
 
-          if (advancedParametersObject?.function_call &&
-            JSON.stringify(payload.function_call) !== '{"name":"urlFetch"}' &&
-            JSON.stringify(payload.function_call) !== '{"name":"webSearch"}') {
+          if (advancedParametersObject?.tool_choice &&
+            JSON.stringify(payload.tool_choice) !== '{"name":"urlFetch"}' &&
+            JSON.stringify(payload.tool_choice) !== '{"name":"webSearch"}') {
             // the user has set a specific function to call
-            let function_calling = {
-              name: advancedParametersObject.function_call
+            let tool_choosing = {
+              name: advancedParametersObject.tool_choice
             };
-            payload.function_call = function_calling;
+            payload.tool_choice = tool_choosing;
           }
         }
 
@@ -470,17 +494,17 @@ const ChatGPTApp = (function () {
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
-          if (responseMessage.function_call) {
+          if (responseMessage.tool_calls && responseMessage.tool_calls[0].type == "function") {
             // Call the function
-            let functionName = responseMessage.function_call.name;
-            let functionArgs = parseResponse(responseMessage.function_call.arguments);
+            let functionName = responseMessage.tool_calls[0].function.name;
+            let functionArgs = parseResponse(responseMessage.tool_calls[0].function.arguments);
 
             let argsOrder = [];
             let endWithResult = false;
             let onlyReturnArguments = false;
 
-            for (let f in functions) {
-              let currentFunction = functions[f].toJSON();
+            for (let t in tools) {
+              let currentFunction = tools[t].function.toJSON();
               if (currentFunction.name == functionName) {
                 argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
                 endWithResult = currentFunction.endingFunction;
@@ -546,7 +570,7 @@ const ChatGPTApp = (function () {
                 // Once we've opened a web page,
                 // let the model decide what to do
                 // eg: model can either be satisfied with the info found in the web page or decide to open another web page
-                payload.function_call = "auto";
+                payload.tool_choice = "auto";
                 if (verbose) {
                   console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
                 }
@@ -607,6 +631,8 @@ const ChatGPTApp = (function () {
         'payload': JSON.stringify(payload),
         'muteHttpExceptions': true
       };
+
+      Logger.log(options)
 
       let response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
       let responseCode = response.getResponseCode();

@@ -12,6 +12,8 @@ The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT int
 * [Add Messages](#add-messages)
 * [Add Callable Functions](#add-callable-function)
 * [Enable web browsing (optional)](#enable-web-browsing-optional)
+* [Enable Vision (optional)](#enable-vision-optional)
+* [Enable Google Sheets Access (optional)](#enable-google-sheets-access-optional)
 * [Run the Chat](#run-the-chat)
 
 ###### Examples :
@@ -20,6 +22,9 @@ The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT int
  * [Ask Open AI to create a draft reply for the last email in Gmail inbox](#example-2--ask-open-ai-to-create-a-draft-reply-for-the-last-email-in-gmail-inbox)
  * [Retrieve structured data instead of raw text with onlyReturnArgument()](#example-3--retrieve-structured-data-instead-of-raw-text-with-onlyreturnargument)
  * [Use web browsing](#example-4--use-web-browsing)
+ * [Describe an image](#example-5--describe-an-image)
+ * [Access Google Sheet content](#example-6--access-google-sheet-content)
+
 ###### Reference :
 
  * [Function Class](#function-object)
@@ -94,8 +99,25 @@ If want to restrict your browsing to a specific web page, you can add as a secon
 ### Give a web page as a knowledge base (optional)
 
 If you don't need the perform a web search and want to directly give a link for a web page you want the chat to read before performing any action, you can use the addKnowledgeLink(url) function.
+
 ```javascript
   chat.addKnowledgeLink("https://developers.google.com/apps-script/guides/libraries");
+```
+
+### Enable Vision (optional)
+
+To enable the chat model to describe images, use the `enableVision()` method
+
+```javascript
+chat.enableVision(true);
+```
+
+### Enable Google Sheets Access (optional)
+
+To allow the chat model to access and retrieve data from Google Sheets, use the `enableGoogleSheetAccess()` method.
+
+```javascript
+chat.enableGoogleSheetsAccess(true);
 ```
 
 ### Run the Chat
@@ -181,6 +203,38 @@ const ticket = "Hello, could you check the status of my subscription under custo
  const chatAnswer = chat.run();
  Logger.log(chatAnswer);
 ```
+
+### Example 5 : Describe an Image
+
+To have the chat model describe an image: 
+
+```javascript
+const chat = ChatGPTApp.newChat();
+chat.enableVision(true);
+chat.addMessage("Describe the following image.");
+chat.addImage("https://example.com/image.jpg", "high");
+const response = chat.run();
+Logger.log(response);
+```
+This will enable the vision capability and use the OpenAI model to provide a description of the image at the specified URL. The fidelity parameter can be "low" or "high", affecting the detail level of the description.
+
+### Example 6 : Access Google Sheet Content
+
+To retrieve data from a Google Sheet:
+
+```javascript
+const chat = ChatGPTApp.newChat();
+chat.enableGoogleSheetsAccess(true);
+chat.addMessage("What data is stored in the following spreadsheet?");
+const spreadsheetId = "your_spreadsheet_id_here";
+chat.run({
+  function_call: "getDataFromGoogleSheets",
+  arguments: { spreadsheetId: spreadsheetId }
+});
+const response = chat.run();
+Logger.log(response);
+```
+This example demonstrates how to enable access to Google Sheets and retrieve data from a specified spreadsheet.
 
 ## Reference
 

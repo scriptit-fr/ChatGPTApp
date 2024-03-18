@@ -829,7 +829,7 @@ const ChatGPTApp = (function () {
       content: [
         {
           type: "text",
-          text: "What is the content of this image ? Focus on important element."
+          text: "What is the content of this image ? Focus on important element." // Give a more human friendly description than the initial example prompt given by OpenAI
         },
         {
           type: "image_url",
@@ -940,20 +940,8 @@ const ChatGPTApp = (function () {
     // Preformatted text
     htmlString = htmlString.replace(/<pre>(.*?)<\/pre>/g, '```\n$1\n```');
 
-    // Images
-    const imgRegex = /<img src="(.+?)" alt="(.*?)" ?\/?>/g;
-
-    // Loop through all image matches
-    let match;
-    while ((match = imgRegex.exec(htmlString)) !== null) {
-      const imageUrl = match[1]; // Get image URL
-      const altText = match[2]; // Get alt text
-
-      const replacement = `Image URL: ${imageUrl} altText: ${altText}`; 
-
-      // Replace the image tag with the link and the alt text
-      htmlString = htmlString.replace(match[0], replacement);
-    }
+    // Images - Updated to use Markdown syntax
+    htmlString = htmlString.replace(/<img src="(.+?)" alt="(.*?)" ?\/?>/g, '![$2]($1)'); // Markdown syntax for images is ![alt text](image URL).
 
     // Remove remaining HTML tags
     htmlString = htmlString.replace(/<[^>]*>/g, '');

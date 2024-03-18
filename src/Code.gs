@@ -227,7 +227,7 @@ const ChatGPTApp = (function () {
       /**
       * Add an image to the chat. Will automatically get the description from gpt-4-vision-preview model and add the description as a message. 
       * @param {string} imageUrl - The URL of the image to add.
-      * @param {string} fidelity - The level of fidelity for the image description
+      * @param {string} [fidelity] OPTIONAL - The level of fidelity for the image description
       * @returns {Chat} - The current Chat instance.
       */
       this.addImage = function (imageUrl, fidelity) {

@@ -169,7 +169,7 @@ const ChatGPTApp = (function () {
     .setName("getImageDescription")
     .setDescription("To retrieve the description of an image.")
     .addParameter("imageUrl", "string", "The URL of the image.")
-    .addParameter("highFidelity", "boolean", `To improve the image quality, not needed in most cases.`, isOptional = true);
+    .addParameter("highFidelity", "boolean", `Default: false. To improve the image quality, not needed in most cases.`, isOptional = true);
 
   /**
    * @class
@@ -451,8 +451,8 @@ const ChatGPTApp = (function () {
           }
 
           if (advancedParametersObject?.tool_choice &&
-            JSON.stringify(payload.tool_choice) !== '{"name":"urlFetch"}' &&
-            JSON.stringify(payload.tool_choice) !== '{"name":"webSearch"}') {
+            JSON.stringify(payload.tool_choice.name) !== "urlFetch" &&
+            JSON.stringify(payload.tool_choice.name) !== "webSearch") {
             // the user has set a specific function to call
             let tool_choosing = {
               name: advancedParametersObject.tool_choice
@@ -557,7 +557,7 @@ const ChatGPTApp = (function () {
                       console.log(`function ${functionName}() called by OpenAI.`);
                     }
                   }
-                  
+
                   messages.push({
                     "tool_call_id": responseMessage.tool_calls[tool_call].id,
                     "role": "tool",

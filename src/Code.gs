@@ -89,6 +89,7 @@ const ChatGPTApp = (function () {
        * @param {boolean} [isOptional] - To set if the argument is optional (default: false).
        * @returns {FunctionObject} - The current Function instance.
        */
+
       this.addParameter = function (name, type, description, isOptional = false) {
         let itemsType;
 
@@ -105,7 +106,7 @@ const ChatGPTApp = (function () {
         };
 
         if (type === "array") {
-          if (itemsType) {
+           if (itemsType) {
             properties[name]["items"] = {
               type: itemsType
             }
@@ -168,13 +169,7 @@ const ChatGPTApp = (function () {
     .setName("getImageDescription")
     .setDescription("To retrieve the description of an image.")
     .addParameter("imageUrl", "string", "The URL of the image.")
-    .addParameter("fidelity", `"low" | "high"`, `default "low" (sufficient in most cases)`, isOptional = true);
-
-  let getDataFromGoogleSheetsFunction = new FunctionObject()
-    .setName("getDataFromGoogleSheets")
-    .setDescription("To retrieve all the data contained in a Spreadsheet or a sheet.")
-    .addParameter("spreadsheetId", "string", "The ID of the spreadsheet")
-    .addParameter("sheetName", "string", `The name of a specific sheet to access.`, isOptional = true);
+    .addParameter("highFidelity", "boolean", `To improve the image quality, not needed in most cases.`, isOptional = true);
 
   /**
    * @class
@@ -188,7 +183,6 @@ const ChatGPTApp = (function () {
       let temperature = 0.5;
       let max_tokens = 300;
       let browsing = false;
-      let googleSheetAccess = false;
       let vision = false;
       let onlyRetrieveSearchResults = false;
       let knowledgeLink;
@@ -259,7 +253,7 @@ const ChatGPTApp = (function () {
        * Get the tools of the chat.
        * returns {FunctionObject[]} - The tools of the chat.
        */
-      this.getTools = function () {
+      this.getFunctions = function () {
         return JSON.stringify(tools);
       };
 
@@ -308,20 +302,6 @@ const ChatGPTApp = (function () {
         }
         return this;
       };
-
-      /**
-       * OPTIONAL
-       * 
-       * Allow openAI to access Google Spreadsheets.
-       * @param {true} scope - set to true to enable vision. 
-       * @returns {Chat} - The current Chat instance.
-       */
-      this.enableGoogleSheetsAccess = function (scope) {
-        if (scope) {
-          googleSheetAccess = true;
-        }
-        return this;
-      }
 
       /**
        * Includes the content of a web page in the prompt sent to openAI
@@ -405,8 +385,6 @@ const ChatGPTApp = (function () {
 
         let functionCalling = false;
 
-
-
         if (browsing) {
           if (messages[messages.length - 1].role !== "function") {
             tools.push({
@@ -453,13 +431,6 @@ const ChatGPTApp = (function () {
           }
         }
 
-        if (googleSheetAccess) {
-          tools.push({
-            type: "function",
-            function: getDataFromGoogleSheetsFunction
-          });
-        }
-
         if (tools.length >> 0) {
           // the user has added functions, enable function calling
 
@@ -494,107 +465,107 @@ const ChatGPTApp = (function () {
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
-          if (responseMessage.tool_calls && responseMessage.tool_calls[0].type == "function") {
-            // Call the function
-            let functionName = responseMessage.tool_calls[0].function.name;
-            let functionArgs = parseResponse(responseMessage.tool_calls[0].function.arguments);
+          if (responseMessage.tool_calls) {
+            // Inform the chat that the function has been called
+            // https://platform.openai.com/docs/guides/function-calling
+            // Chat needs it's own response to get the tool_calls id(s), and won't go on if the following messages are not the correct tool_calls
+            messages.push(responseMessage);
+            for (let tool_call in responseMessage.tool_calls) {
+              if (responseMessage.tool_calls[tool_call].type == "function") {
+                // Call the function
+                let functionName = responseMessage.tool_calls[tool_call].function.name;
+                let functionArgs = parseResponse(responseMessage.tool_calls[tool_call].function.arguments);
 
-            let argsOrder = [];
-            let endWithResult = false;
-            let onlyReturnArguments = false;
+                let argsOrder = [];
+                let endWithResult = false;
+                let onlyReturnArguments = false;
 
-            for (let t in tools) {
-              let currentFunction = tools[t].function.toJSON();
-              if (currentFunction.name == functionName) {
-                argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
-                endWithResult = currentFunction.endingFunction;
-                onlyReturnArguments = currentFunction.onlyArgs;
-                break;
-              }
-            }
-
-            if (endWithResult) {
-              let functionResponse = callFunction(functionName, functionArgs, argsOrder);
-              if (typeof functionResponse != "string") {
-                if (typeof functionResponse == "object") {
-                  functionResponse = JSON.stringify(functionResponse);
-                }
-                else {
-                  functionResponse = String(functionResponse);
-                }
-              }
-              if (verbose) {
-                console.log("Conversation stopped because end function has been called");
-              }
-              return responseMessage;;
-            }
-            else if (onlyReturnArguments) {
-              if (verbose) {
-                console.log("Conversation stopped because argument return has been enabled - No function has been called");
-              }
-              return functionArgs;
-            }
-            else {
-              let functionResponse = callFunction(functionName, functionArgs, argsOrder);
-              if (typeof functionResponse != "string") {
-                if (typeof functionResponse == "object") {
-                  functionResponse = JSON.stringify(functionResponse);
-                }
-                else {
-                  functionResponse = String(functionResponse);
-                }
-              }
-
-              if (functionName == "webSearch") {
-                webSearchQueries.push(functionArgs.q);
-              }
-              else if (functionName == "urlFetch") {
-                webPagesOpened.push(functionArgs.url);
-                if (!functionResponse) {
-                  if (verbose) {
-                    console.log("The website didn't respond, going back to search results.");
+                for (let t in tools) {
+                  let currentFunction = tools[t].function.toJSON();
+                  if (currentFunction.name == functionName) {
+                    argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
+                    endWithResult = currentFunction.endingFunction;
+                    onlyReturnArguments = currentFunction.onlyArgs;
+                    break;
                   }
-                  let searchResults = JSON.parse(messages[messages.length - 1].content);
-                  let updatedSearchResults = searchResults.filter(function (obj) {
-                    return obj.link !== functionArgs.url;
-                  });
-                  messages[messages.length - 1].content = JSON.stringify(updatedSearchResults);
+                }
 
-                  if (advancedParametersObject) {
-                    return this.run(advancedParametersObject);
+                if (endWithResult) {
+                  let functionResponse = callFunction(functionName, functionArgs, argsOrder);
+                  if (typeof functionResponse != "string") {
+                    if (typeof functionResponse == "object") {
+                      functionResponse = JSON.stringify(functionResponse);
+                    }
+                    else {
+                      functionResponse = String(functionResponse);
+                    }
+                  }
+                  if (verbose) {
+                    console.log("Conversation stopped because end function has been called");
+                  }
+                  return responseMessage;;
+                }
+                else if (onlyReturnArguments) {
+                  if (verbose) {
+                    console.log("Conversation stopped because argument return has been enabled - No function has been called");
+                  }
+                  return functionArgs;
+                }
+                else {
+                  let functionResponse = callFunction(functionName, functionArgs, argsOrder);
+                  if (typeof functionResponse != "string") {
+                    if (typeof functionResponse == "object") {
+                      functionResponse = JSON.stringify(functionResponse);
+                    }
+                    else {
+                      functionResponse = String(functionResponse);
+                    }
+                  }
+
+                  if (functionName == "webSearch") {
+                    webSearchQueries.push(functionArgs.q);
+                  }
+                  else if (functionName == "urlFetch") {
+                    webPagesOpened.push(functionArgs.url);
+                    if (!functionResponse) {
+                      if (verbose) {
+                        console.log("The website didn't respond, going back to search results.");
+                      }
+                      let searchResults = JSON.parse(messages[messages.length - 1].content);
+                      let updatedSearchResults = searchResults.filter(function (obj) {
+                        return obj.link !== functionArgs.url;
+                      });
+                      messages[messages.length - 1].content = JSON.stringify(updatedSearchResults);
+
+                      if (advancedParametersObject) {
+                        return this.run(advancedParametersObject);
+                      }
+                      else {
+                        return this.run();
+                      }
+                    }
+                    // Once we've opened a web page,
+                    // let the model decide what to do
+                    // eg: model can either be satisfied with the info found in the web page or decide to open another web page
+                    payload.tool_choice = "auto";
+                    if (verbose) {
+                      console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
+                    }
                   }
                   else {
-                    return this.run();
+                    if (verbose) {
+                      console.log(`function ${functionName}() called by OpenAI.`);
+                    }
                   }
-                }
-                // Once we've opened a web page,
-                // let the model decide what to do
-                // eg: model can either be satisfied with the info found in the web page or decide to open another web page
-                payload.tool_choice = "auto";
-                if (verbose) {
-                  console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
-                }
-              }
-              else {
-                if (verbose) {
-                  console.log(`function ${functionName}() called by OpenAI.`);
+                  
+                  messages.push({
+                    "tool_call_id": responseMessage.tool_calls[tool_call].id,
+                    "role": "tool",
+                    "name": functionName,
+                    "content": functionResponse,
+                  });
                 }
               }
-
-              // Inform the chat that the function has been called
-              messages.push({
-                "role": "assistant",
-                "content": null,
-                "function_call": {
-                  "name": functionName,
-                  "arguments": JSON.stringify(functionArgs)
-                }
-              });
-              messages.push({
-                "role": "function",
-                "name": functionName,
-                "content": functionResponse,
-              });
             }
             if (advancedParametersObject) {
               return this.run(advancedParametersObject);
@@ -602,6 +573,8 @@ const ChatGPTApp = (function () {
             else {
               return this.run();
             }
+
+
           }
           else {
             // if no function has been found, stop here
@@ -689,13 +662,6 @@ const ChatGPTApp = (function () {
         return getImageDescription(jsonArgs.imageUrl, jsonArgs.fidelity);
       } else {
         return getImageDescription(jsonArgs.imageUrl);
-      }
-    }
-    if (functionName == "getDataFromGoogleSheets") {
-      if (jsonArgs.sheetName) {
-        return getDataFromGoogleSheets(jsonArgs.spreadsheetId, jsonArgs.sheetName);
-      } else {
-        return getDataFromGoogleSheets(jsonArgs.spreadsheetId);
       }
     }
     // Parse JSON arguments
@@ -846,6 +812,8 @@ const ChatGPTApp = (function () {
 
     if (!fidelity) {
       fidelity = "low";
+    } else {
+      fidelity = "high";
     }
 
     let imageMessage = [{
@@ -875,30 +843,6 @@ const ChatGPTApp = (function () {
     let responseMessage = callOpenAIApi(payload);
 
     return responseMessage;
-  }
-
-  function getDataFromGoogleSheets(spreadsheetId, sheetName) {
-    var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
-    var result = {};
-
-    if (sheetName) {
-      // Fetch content of the specified sheet
-      var sheet = spreadsheet.getSheetByName(sheetName);
-      if (sheet) {
-        result[sheetName] = sheet.getDataRange().getValues();
-
-      } else {
-        result.error = "Sheet with specified name not found.";
-      }
-    } else {
-      // Fetch content of every sheet
-      var sheets = spreadsheet.getSheets();
-      sheets.forEach(function (sheet) {
-        result[sheet.getName()] = sheet.getDataRange().getValues();
-      });
-    }
-
-    return result;
   }
 
   function convertHtmlToMarkdown(htmlString) {

@@ -25,7 +25,7 @@ const ChatGPTApp = (function () {
   let googleCustomSearchAPIKey = "";
   let restrictSearch;
 
-  let maximumAPICalls = 1000000; // Ridiculously high to mimic infinity
+  let maximumAPICalls = 30;
   let numberOfAPICalls = 0;
 
   let verbose = true;
@@ -334,11 +334,11 @@ const ChatGPTApp = (function () {
        * Sends all your messages and eventual function to chat GPT.
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {Object} [advancedParametersObject] OPTIONAL - For more advanced settings and specific usage only. {model, temperature, tool_choice}
+       * @param {Object} [advancedParametersObject] OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
        * @param {"gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "gpt-4-1106-preview" | "gpt-4-turbo-preview"} [advancedParametersObject.model]
        * @param {number} [advancedParametersObject.temperature]
        * @param {number} [advancedParametersObject.max_tokens]
-       * @param {string} [advancedParametersObject.tool_choice]
+       * @param {string} [advancedParametersObject.function_call]
        * @returns {object} - the last message of the chat 
        */
       this.run = function (advancedParametersObject) {
@@ -436,8 +436,6 @@ const ChatGPTApp = (function () {
 
         if (tools.length >> 0) {
           // the user has added functions, enable function calling
-
-
           functionCalling = true;
           let payloadTools = Object.keys(tools).map(t => ({
             type: "function",
@@ -453,12 +451,12 @@ const ChatGPTApp = (function () {
             payload.tool_choice = 'auto';
           }
 
-          if (advancedParametersObject?.tool_choice &&
-            JSON.stringify(payload.tool_choice.name) !== "urlFetch" &&
+          if (advancedParametersObject?.function_call &&
+            payload.tool_choice.name !== "urlFetch" &&
             JSON.stringify(payload.tool_choice.name) !== "webSearch") {
             // the user has set a specific function to call
             let tool_choosing = {
-              name: advancedParametersObject.tool_choice
+              name: advancedParametersObject.function_call
             };
             payload.tool_choice = tool_choosing;
           }
@@ -622,7 +620,7 @@ const ChatGPTApp = (function () {
         responseMessage = parsedResponse.choices[0].message;
         finish_reason = parsedResponse.choices[0].finish_reason;
         if (finish_reason == "length") {
-          console.warn(`OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property.`);
+          console.warn(`OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property. max_tokens: ${payload.max_tokens}, prompt_tokens: ${parsedResponse.usage.prompt_tokens}, completion_tokens: ${parsedResponse.usage.completion_tokens}`);
         }
         success = true;
       }
@@ -759,7 +757,7 @@ const ChatGPTApp = (function () {
         searchEngineId = restrictSearch;
       }
     }
-    url += `&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
+    url += `&cx=${searchEngineId}&q=${encodeURIComponent(q)}&num=10`;
 
     const urlfetchResp = UrlFetchApp.fetch(url);
     const resp = JSON.parse(urlfetchResp.getContentText());
@@ -977,7 +975,7 @@ const ChatGPTApp = (function () {
     /**
      * If you want to limit the number of calls to the OpenAI API
      * A good way to avoid infinity loops and manage your budget.
-     * @param {string} maxAPICalls - 
+     * @param {number} maxAPICalls - 
      */
     setMaximumAPICalls: function (maxAPICalls) {
       maximumAPICalls = maxAPICalls;

@@ -25,6 +25,9 @@ const ChatGPTApp = (function () {
   let googleCustomSearchAPIKey = "";
   let restrictSearch;
 
+  let maximumAPICalls = 1000000; // Ridiculously high to mimic infinity
+  let numberOfAPICalls = 0;
+
   let verbose = true;
 
   const noResultFromWebSearchMessage = `Your search did not match any documents. 
@@ -106,7 +109,7 @@ const ChatGPTApp = (function () {
         };
 
         if (type === "array") {
-           if (itemsType) {
+          if (itemsType) {
             properties[name]["items"] = {
               type: itemsType
             }
@@ -331,7 +334,7 @@ const ChatGPTApp = (function () {
        * Sends all your messages and eventual function to chat GPT.
        * Will return the last chat answer.
        * If a function calling model is used, will call several functions until the chat decides that nothing is left to do.
-       * @param {Object} [advancedParametersObject] OPTIONAL - For more advanced settings and specific usage only. {model, temperature, function_call}
+       * @param {Object} [advancedParametersObject] OPTIONAL - For more advanced settings and specific usage only. {model, temperature, tool_choice}
        * @param {"gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-4" | "gpt-4-32k" | "gpt-4-1106-preview" | "gpt-4-turbo-preview"} [advancedParametersObject.model]
        * @param {number} [advancedParametersObject.temperature]
        * @param {number} [advancedParametersObject.max_tokens]
@@ -386,7 +389,7 @@ const ChatGPTApp = (function () {
         let functionCalling = false;
 
         if (browsing) {
-          if (messages[messages.length - 1].role !== "function") {
+          if (messages[messages.length - 1].role !== "tool") {
             tools.push({
               type: "function",
               function: webSearchFunction
@@ -408,7 +411,7 @@ const ChatGPTApp = (function () {
               function: { name: "webSearch" }
             };
           }
-          else if (messages[messages.length - 1].role == "function" &&
+          else if (messages[messages.length - 1].role == "tool" &&
             messages[messages.length - 1].name === "webSearch" &&
             !onlyRetrieveSearchResults) {
             if (messages[messages.length - 1].content !== noResultFromWebSearchMessage) {
@@ -460,8 +463,12 @@ const ChatGPTApp = (function () {
             payload.tool_choice = tool_choosing;
           }
         }
-
-        let responseMessage = callOpenAIApi(payload);
+        let responseMessage;
+        if (numberOfAPICalls <= maximumAPICalls) {
+          responseMessage = callOpenAIApi(payload);
+        } else {
+          throw new Error(`Too many calls to Open AI API: ${numberOfAPICalls}`);
+        }
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
@@ -589,6 +596,7 @@ const ChatGPTApp = (function () {
   }
 
   function callOpenAIApi(payload) {
+    numberOfAPICalls++;
     let maxRetries = 5;
     let retries = 0;
     let success = false;
@@ -614,7 +622,7 @@ const ChatGPTApp = (function () {
         responseMessage = parsedResponse.choices[0].message;
         finish_reason = parsedResponse.choices[0].finish_reason;
         if (finish_reason == "length") {
-          console.warn(`OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property. max_tokens: ${max_tokens}, prompt_tokens: ${parsedResponse.usage.prompt_tokens}, completion_tokens: ${parsedResponse.usage.completion_tokens}`);
+          console.warn(`OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property.`);
         }
         success = true;
       }
@@ -643,7 +651,7 @@ const ChatGPTApp = (function () {
     }
 
     if (verbose) {
-      console.log('Got response from openAI API');
+      console.log(`Got response from openAI API ${numberOfAPICalls}`);
     }
 
     return responseMessage;
@@ -762,7 +770,7 @@ const ChatGPTApp = (function () {
     }
     else {
       // https://developers.google.com/custom-search/v1/reference/rest/v1/Search?hl=en#Result
-      searchResults = JSON.stringify(resp.items.map(function (item) {
+      searchResults = JSON.stringify(resp.items.slice(0, 10).map(function (item) {
         return {
           title: item.title,
           link: item.link,
@@ -964,6 +972,15 @@ const ChatGPTApp = (function () {
      */
     setGoogleSearchAPIKey: function (apiKey) {
       googleCustomSearchAPIKey = apiKey;
+    },
+
+    /**
+     * If you want to limit the number of calls to the OpenAI API
+     * A good way to avoid infinity loops and manage your budget.
+     * @param {string} maxAPICalls - 
+     */
+    setMaximumAPICalls: function (maxAPICalls) {
+      maximumAPICalls = maxAPICalls;
     },
 
     /**

@@ -238,7 +238,7 @@ const ChatGPTApp = (function () {
         messages.push(
           {
             role: "system",
-            content: `An image was given, here is the description:\n${description}` // don't give link, function calling calls it otherwise
+            content: `An image was given, here is the description:\n${description.content}` // don't give link, function calling calls it otherwise
           }
         )
         return this;
@@ -453,7 +453,7 @@ const ChatGPTApp = (function () {
 
           if (advancedParametersObject?.function_call &&
             payload.tool_choice.name !== "urlFetch" &&
-            JSON.stringify(payload.tool_choice.name) !== "webSearch") {
+            payload.tool_choice.name !== "webSearch") {
             // the user has set a specific function to call
             let tool_choosing = {
               name: advancedParametersObject.function_call
@@ -471,107 +471,7 @@ const ChatGPTApp = (function () {
         if (functionCalling) {
           // Check if GPT wanted to call a function
           if (responseMessage.tool_calls) {
-            // Inform the chat that the function has been called
-            // https://platform.openai.com/docs/guides/function-calling
-            // Chat needs it's own response to get the tool_calls id(s), and won't go on if the following messages are not the correct tool_calls
-            messages.push(responseMessage);
-            for (let tool_call in responseMessage.tool_calls) {
-              if (responseMessage.tool_calls[tool_call].type == "function") {
-                // Call the function
-                let functionName = responseMessage.tool_calls[tool_call].function.name;
-                let functionArgs = parseResponse(responseMessage.tool_calls[tool_call].function.arguments);
-
-                let argsOrder = [];
-                let endWithResult = false;
-                let onlyReturnArguments = false;
-
-                for (let t in tools) {
-                  let currentFunction = tools[t].function.toJSON();
-                  if (currentFunction.name == functionName) {
-                    argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
-                    endWithResult = currentFunction.endingFunction;
-                    onlyReturnArguments = currentFunction.onlyArgs;
-                    break;
-                  }
-                }
-
-                if (endWithResult) {
-                  let functionResponse = callFunction(functionName, functionArgs, argsOrder);
-                  if (typeof functionResponse != "string") {
-                    if (typeof functionResponse == "object") {
-                      functionResponse = JSON.stringify(functionResponse);
-                    }
-                    else {
-                      functionResponse = String(functionResponse);
-                    }
-                  }
-                  if (verbose) {
-                    console.log("Conversation stopped because end function has been called");
-                  }
-                  return responseMessage;;
-                }
-                else if (onlyReturnArguments) {
-                  if (verbose) {
-                    console.log("Conversation stopped because argument return has been enabled - No function has been called");
-                  }
-                  return functionArgs;
-                }
-                else {
-                  let functionResponse = callFunction(functionName, functionArgs, argsOrder);
-                  if (typeof functionResponse != "string") {
-                    if (typeof functionResponse == "object") {
-                      functionResponse = JSON.stringify(functionResponse);
-                    }
-                    else {
-                      functionResponse = String(functionResponse);
-                    }
-                  }
-
-                  if (functionName == "webSearch") {
-                    webSearchQueries.push(functionArgs.q);
-                  }
-                  else if (functionName == "urlFetch") {
-                    webPagesOpened.push(functionArgs.url);
-                    if (!functionResponse) {
-                      if (verbose) {
-                        console.log("The website didn't respond, going back to search results.");
-                      }
-                      let searchResults = JSON.parse(messages[messages.length - 1].content);
-                      let updatedSearchResults = searchResults.filter(function (obj) {
-                        return obj.link !== functionArgs.url;
-                      });
-                      messages[messages.length - 1].content = JSON.stringify(updatedSearchResults);
-
-                      if (advancedParametersObject) {
-                        return this.run(advancedParametersObject);
-                      }
-                      else {
-                        return this.run();
-                      }
-                    }
-                    // Once we've opened a web page,
-                    // let the model decide what to do
-                    // eg: model can either be satisfied with the info found in the web page or decide to open another web page
-                    payload.tool_choice = "auto";
-                    if (verbose) {
-                      console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
-                    }
-                  }
-                  else {
-                    if (verbose) {
-                      console.log(`function ${functionName}() called by OpenAI.`);
-                    }
-                  }
-
-                  messages.push({
-                    "tool_call_id": responseMessage.tool_calls[tool_call].id,
-                    "role": "tool",
-                    "name": functionName,
-                    "content": functionResponse,
-                  });
-                }
-              }
-            }
+            messages = handleToolCalls(responseMessage, tools, messages);            
             if (advancedParametersObject) {
               return this.run(advancedParametersObject);
             }
@@ -653,6 +553,111 @@ const ChatGPTApp = (function () {
     }
 
     return responseMessage;
+  }
+
+  function handleToolCalls(responseMessage, tools, messages) {
+    // Inform the chat that the function has been called
+    // https://platform.openai.com/docs/guides/function-calling
+    // Chat needs it's own response to get the tool_calls id(s), and won't go on if the following messages are not the correct tool_calls
+    messages.push(responseMessage);
+    for (let tool_call in responseMessage.tool_calls) {
+      if (responseMessage.tool_calls[tool_call].type == "function") {
+        // Call the function
+        let functionName = responseMessage.tool_calls[tool_call].function.name;
+        let functionArgs = parseResponse(responseMessage.tool_calls[tool_call].function.arguments);
+
+        let argsOrder = [];
+        let endWithResult = false;
+        let onlyReturnArguments = false;
+
+        for (let t in tools) {
+          let currentFunction = tools[t].function.toJSON();
+          if (currentFunction.name == functionName) {
+            argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
+            endWithResult = currentFunction.endingFunction;
+            onlyReturnArguments = currentFunction.onlyArgs;
+            break;
+          }
+        }
+
+        if (endWithResult) {
+          let functionResponse = callFunction(functionName, functionArgs, argsOrder);
+          if (typeof functionResponse != "string") {
+            if (typeof functionResponse == "object") {
+              functionResponse = JSON.stringify(functionResponse);
+            }
+            else {
+              functionResponse = String(functionResponse);
+            }
+          }
+          if (verbose) {
+            console.log("Conversation stopped because end function has been called");
+          }
+          return responseMessage;;
+        }
+        else if (onlyReturnArguments) {
+          if (verbose) {
+            console.log("Conversation stopped because argument return has been enabled - No function has been called");
+          }
+          return functionArgs;
+        }
+        else {
+          let functionResponse = callFunction(functionName, functionArgs, argsOrder);
+          if (typeof functionResponse != "string") {
+            if (typeof functionResponse == "object") {
+              functionResponse = JSON.stringify(functionResponse);
+            }
+            else {
+              functionResponse = String(functionResponse);
+            }
+          }
+
+          if (functionName == "webSearch") {
+            webSearchQueries.push(functionArgs.q);
+          }
+          else if (functionName == "urlFetch") {
+            webPagesOpened.push(functionArgs.url);
+            if (!functionResponse) {
+              if (verbose) {
+                console.log("The website didn't respond, going back to search results.");
+              }
+              let searchResults = JSON.parse(messages[messages.length - 1].content);
+              let updatedSearchResults = searchResults.filter(function (obj) {
+                return obj.link !== functionArgs.url;
+              });
+              messages[messages.length - 1].content = JSON.stringify(updatedSearchResults);
+
+              if (advancedParametersObject) {
+                return this.run(advancedParametersObject);
+              }
+              else {
+                return this.run();
+              }
+            }
+            // Once we've opened a web page,
+            // let the model decide what to do
+            // eg: model can either be satisfied with the info found in the web page or decide to open another web page
+            payload.tool_choice = "auto";
+            if (verbose) {
+              console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
+            }
+          }
+          else {
+            if (verbose) {
+              console.log(`function ${functionName}() called by OpenAI.`);
+            }
+          }
+
+          messages.push({
+            "tool_call_id": responseMessage.tool_calls[tool_call].id,
+            "role": "tool",
+            "name": functionName,
+            "content": functionResponse,
+          });
+        }
+      }
+    }
+    return messages;
   }
 
   function callFunction(functionName, jsonArgs, argsOrder) {
@@ -815,6 +820,16 @@ const ChatGPTApp = (function () {
   }
 
   function getImageDescription(imageUrl, fidelity) {
+    const extensions = ['png', 'jpeg', 'gif', 'webp'];
+    if (!extensions.some(extension => imageUrl.toLowerCase().endsWith(`.${extension}`))) {
+      if (verbose) {
+        Logger.log({
+          message: `Tried to get description of image, but extension is not supported by OpenAI API. Supported extensions are 'png', 'jpeg', 'gif', 'webp'`,
+          imageUrl: imageUrl
+        })
+      }
+      return "This is not a supported image, no description available."
+    }
 
     if (!fidelity) {
       fidelity = "low";

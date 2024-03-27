@@ -452,8 +452,8 @@ const ChatGPTApp = (function () {
           }
 
           if (advancedParametersObject?.function_call &&
-            payload.tool_choice.name !== "urlFetch" &&
-            payload.tool_choice.name !== "webSearch") {
+            payload.tool_choice.function?.name !== "urlFetch" &&
+            payload.tool_choice.function?.name !== "webSearch") {
             // the user has set a specific function to call
             let tool_choosing = {
               type: "function",
@@ -462,6 +462,11 @@ const ChatGPTApp = (function () {
               }
             };
             payload.tool_choice = tool_choosing;
+          } else if (messages[messages.length - 1].role == "tool" && messages[messages.length - 1].name == urlFetch) {
+            // Once we've opened a web page,
+            // let the model decide what to do
+            // eg: model can either be satisfied with the info found in the web page or decide to open another web page
+            payload.tool_choice = 'auto'
           }
         }
         let responseMessage;
@@ -474,7 +479,21 @@ const ChatGPTApp = (function () {
         if (functionCalling) {
           // Check if GPT wanted to call a function
           if (responseMessage.tool_calls) {
-            messages = handleToolCalls(responseMessage, tools, messages);
+            messages = handleToolCalls(responseMessage, tools, messages, webSearchQueries, webPagesOpened);
+            // check if endWithResults or onlyReturnArguments
+            if (messages[messages.length - 1].role == "system") {
+              if (messages[messages.length - 1].content == "endWithResult") {
+                if (verbose) {
+                  console.log("Conversation stopped because end function has been called");
+                }
+                return messages[messages.length - 2]; // the last chat completion
+              } else if (messages[messages.length - 1].content == "onlyReturnArguments") {
+                if (verbose) {
+                  console.log("Conversation stopped because argument return has been enabled - No function has been called");
+                }
+                return messages[messages.length - 2].tool_calls[0].function.arguments; // the argument(s) of the last function called
+              }
+            }
             if (advancedParametersObject) {
               return this.run(advancedParametersObject);
             }
@@ -573,17 +592,13 @@ const ChatGPTApp = (function () {
    * by updating the `messages` array with new messages or by returning early.
    * 
    * @param {Object} responseMessage - The response message object from the chat that contains the tool calls.
-   * @param {Object[]} tools - An array of tool objects that describe available tools and their specifications,
-   * including the function details like name, arguments order, whether it's an ending function, etc.
+   * @param {Object[]} tools - An array of tool objects that describe available tools and their specifications
    * @param {Object[]} messages - The array of message objects to be updated with responses from tool calls.
-   * The message object structure includes tool call ID, role, name, and content.
-   *
-   * @returns {Object[]|Object} Returns the updated `messages` array or, in specific cases based on the function
-   * being called (e.g., ending functions or functions that only return arguments), may return the response message
-   * object or the parsed function arguments.
+   * @param {string[]} webSearchQueries - An array to record search queries made as a result of the tool calls.
+   * @param {string[]} webPagesOpened - An array to record web pages opened as a result of the tool calls.
+   * @returns {Object[]} The updated array of message objects after processing the tool calls.
    */
-  function handleToolCalls(responseMessage, tools, messages) {
-
+  function handleToolCalls(responseMessage, tools, messages, webSearchQueries, webPagesOpened) {
     messages.push(responseMessage);
     for (let tool_call in responseMessage.tool_calls) {
       if (responseMessage.tool_calls[tool_call].type == "function") {
@@ -616,16 +631,18 @@ const ChatGPTApp = (function () {
               functionResponse = String(functionResponse);
             }
           }
-          if (verbose) {
-            console.log("Conversation stopped because end function has been called");
-          }
-          return responseMessage;
+          messages.push({
+            "role": "system",
+            "content": "endWithResult"
+          });
+          return messages;
         }
         else if (onlyReturnArguments) {
-          if (verbose) {
-            console.log("Conversation stopped because argument return has been enabled - No function has been called");
-          }
-          return functionArgs;
+          messages.push({
+            "role": "system",
+            "content": "onlyReturnArguments"
+          });
+          return messages;
         }
         else {
           let functionResponse = callFunction(functionName, functionArgs, argsOrder);
@@ -652,18 +669,7 @@ const ChatGPTApp = (function () {
                 return obj.link !== functionArgs.url;
               });
               messages[messages.length - 1].content = JSON.stringify(updatedSearchResults);
-
-              if (advancedParametersObject) {
-                return this.run(advancedParametersObject);
-              }
-              else {
-                return this.run();
-              }
             }
-            // Once we've opened a web page,
-            // let the model decide what to do
-            // eg: model can either be satisfied with the info found in the web page or decide to open another web page
-            payload.tool_choice = "auto";
             if (verbose) {
               console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
             }
@@ -673,7 +679,6 @@ const ChatGPTApp = (function () {
               console.log(`function ${functionName}() called by OpenAI.`);
             }
           }
-
           messages.push({
             "tool_call_id": responseMessage.tool_calls[tool_call].id,
             "role": "tool",
@@ -830,9 +835,10 @@ const ChatGPTApp = (function () {
       response = UrlFetchApp.fetch(url);
     }
     catch (e) {
-      console.error(`Error fetching the URL: ${e.message}`);
+
+      console.warn(`Error fetching the URL: ${e.message}`);
       return JSON.stringify({
-        error: "Failed to fetch the URL"
+        error: "Failed to fetch the URL : You are not authorized to access this website. Try another one."
       });
     }
     if (response.getResponseCode() == 200) {

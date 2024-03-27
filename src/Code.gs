@@ -456,7 +456,10 @@ const ChatGPTApp = (function () {
             payload.tool_choice.name !== "webSearch") {
             // the user has set a specific function to call
             let tool_choosing = {
-              name: advancedParametersObject.function_call
+              type: "function",
+              function: {
+                name: advancedParametersObject.function_call
+              }
             };
             payload.tool_choice = tool_choosing;
           }
@@ -465,13 +468,13 @@ const ChatGPTApp = (function () {
         if (numberOfAPICalls <= maximumAPICalls) {
           responseMessage = callOpenAIApi(payload);
         } else {
-          throw new Error(`Too many calls to Open AI API: ${numberOfAPICalls}`);
+          throw new Error(`Too many calls to OpenAI API: ${numberOfAPICalls}`);
         }
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
           if (responseMessage.tool_calls) {
-            messages = handleToolCalls(responseMessage, tools, messages);            
+            messages = handleToolCalls(responseMessage, tools, messages);
             if (advancedParametersObject) {
               return this.run(advancedParametersObject);
             }
@@ -531,8 +534,9 @@ const ChatGPTApp = (function () {
         Utilities.sleep(delay);
         retries++;
       }
-      else if (responseCode === 503) {
-        // The server is temporarily unavailable, wait before retrying.
+      else if (responseCode === 503 || responseCode === 500) {
+        // The server is temporarily unavailable, or an issue occured on OpenAI servers. wait before retrying.
+        // https://platform.openai.com/docs/guides/error-codes/api-errors
         let delay = Math.pow(2, retries) * 1000; // Delay in milliseconds, starting at 1 second.
         Utilities.sleep(delay);
         retries++;
@@ -549,16 +553,37 @@ const ChatGPTApp = (function () {
     }
 
     if (verbose) {
-      console.log(`Got response from openAI API ${numberOfAPICalls}`);
+      console.log(`Got response from openAI API.`);
     }
 
     return responseMessage;
   }
 
+
+  /**
+   * Handles the invocation of tool functions based on the response from a chat session
+   * 
+   * First inform the chat that the function has been called
+   * https://platform.openai.com/docs/guides/function-calling
+   * Chat needs it's own response to get the tool_calls id(s), and won't go on if the following messages are not the correct tool_calls
+   * 
+   * Then iterates over the tool calls in the `responseMessage` to find matching functions in the `tools`
+   * array. It then calls these functions with the parsed arguments. Depending on the function's specification
+   * (e.g., if it's an ending function or only returns arguments), it may alter the flow of the conversation
+   * by updating the `messages` array with new messages or by returning early.
+   * 
+   * @param {Object} responseMessage - The response message object from the chat that contains the tool calls.
+   * @param {Object[]} tools - An array of tool objects that describe available tools and their specifications,
+   * including the function details like name, arguments order, whether it's an ending function, etc.
+   * @param {Object[]} messages - The array of message objects to be updated with responses from tool calls.
+   * The message object structure includes tool call ID, role, name, and content.
+   *
+   * @returns {Object[]|Object} Returns the updated `messages` array or, in specific cases based on the function
+   * being called (e.g., ending functions or functions that only return arguments), may return the response message
+   * object or the parsed function arguments.
+   */
   function handleToolCalls(responseMessage, tools, messages) {
-    // Inform the chat that the function has been called
-    // https://platform.openai.com/docs/guides/function-calling
-    // Chat needs it's own response to get the tool_calls id(s), and won't go on if the following messages are not the correct tool_calls
+
     messages.push(responseMessage);
     for (let tool_call in responseMessage.tool_calls) {
       if (responseMessage.tool_calls[tool_call].type == "function") {
@@ -581,6 +606,7 @@ const ChatGPTApp = (function () {
         }
 
         if (endWithResult) {
+          // User defined that if this function has been called, then no more actions should be performed with the chat.
           let functionResponse = callFunction(functionName, functionArgs, argsOrder);
           if (typeof functionResponse != "string") {
             if (typeof functionResponse == "object") {
@@ -593,7 +619,7 @@ const ChatGPTApp = (function () {
           if (verbose) {
             console.log("Conversation stopped because end function has been called");
           }
-          return responseMessage;;
+          return responseMessage;
         }
         else if (onlyReturnArguments) {
           if (verbose) {

@@ -491,7 +491,7 @@ const ChatGPTApp = (function () {
                 if (verbose) {
                   console.log("Conversation stopped because argument return has been enabled - No function has been called");
                 }
-                return messages[messages.length - 2].tool_calls[0].function.arguments; // the argument(s) of the last function called
+                return parseResponse(messages[messages.length - 2].tool_calls[0].function.arguments); // the argument(s) of the last function called
               }
             }
             if (advancedParametersObject) {

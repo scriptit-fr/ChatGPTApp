@@ -25,6 +25,9 @@ const ChatGPTApp = (function () {
   let googleCustomSearchAPIKey = "";
   let restrictSearch;
 
+  let maximumAPICalls = 30;
+  let numberOfAPICalls = 0;
+
   let verbose = true;
 
   const noResultFromWebSearchMessage = `Your search did not match any documents. 
@@ -89,6 +92,7 @@ const ChatGPTApp = (function () {
        * @param {boolean} [isOptional] - To set if the argument is optional (default: false).
        * @returns {FunctionObject} - The current Function instance.
        */
+
       this.addParameter = function (name, type, description, isOptional = false) {
         let itemsType;
 
@@ -168,13 +172,7 @@ const ChatGPTApp = (function () {
     .setName("getImageDescription")
     .setDescription("To retrieve the description of an image.")
     .addParameter("imageUrl", "string", "The URL of the image.")
-    .addParameter("fidelity", `"low" | "high"`, `default "low" (sufficient in most cases)`, isOptional = true);
-
-  let getDataFromGoogleSheetsFunction = new FunctionObject()
-    .setName("getDataFromGoogleSheets")
-    .setDescription("To retrieve all the data contained in a Spreadsheet or a sheet.")
-    .addParameter("spreadsheetId", "string", "The ID of the spreadsheet")
-    .addParameter("sheetName", "string", `The name of a specific sheet to access.`, isOptional = true);
+    .addParameter("highFidelity", "boolean", `Default: false. To improve the image quality, not needed in most cases.`, isOptional = true);
 
   /**
    * @class
@@ -183,12 +181,11 @@ const ChatGPTApp = (function () {
   class Chat {
     constructor() {
       let messages = [];
-      let functions = [];
+      let tools = [];
       let model = "gpt-3.5-turbo"; // default 
       let temperature = 0.5;
       let max_tokens = 300;
       let browsing = false;
-      let googleSheetAccess = false;
       let vision = false;
       let onlyRetrieveSearchResults = false;
       let knowledgeLink;
@@ -220,7 +217,10 @@ const ChatGPTApp = (function () {
        * @returns {Chat} - The current Chat instance.
        */
       this.addFunction = function (functionObject) {
-        functions.push(functionObject);
+        tools.push({
+          type: "function",
+          function: functionObject
+        });
         return this;
       };
 
@@ -238,7 +238,7 @@ const ChatGPTApp = (function () {
         messages.push(
           {
             role: "system",
-            content: `An image was given, here is the description:\n${description}` // don't give link, function calling calls it otherwise
+            content: `An image was given, here is the description:\n${description.content}` // don't give link, function calling calls it otherwise
           }
         )
         return this;
@@ -253,11 +253,11 @@ const ChatGPTApp = (function () {
       };
 
       /**
-       * Get the functions of the chat.
-       * returns {FunctionObject[]} - The functions of the chat.
+       * Get the tools of the chat.
+       * returns {FunctionObject[]} - The tools of the chat.
        */
       this.getFunctions = function () {
-        return JSON.stringify(functions);
+        return JSON.stringify(tools);
       };
 
       /**
@@ -307,20 +307,6 @@ const ChatGPTApp = (function () {
       };
 
       /**
-       * OPTIONAL
-       * 
-       * Allow openAI to access Google Spreadsheets.
-       * @param {true} scope - set to true to enable vision. 
-       * @returns {Chat} - The current Chat instance.
-       */
-      this.enableGoogleSheetsAccess = function (scope) {
-        if (scope) {
-          googleSheetAccess = true;
-        }
-        return this;
-      }
-
-      /**
        * Includes the content of a web page in the prompt sent to openAI
        * @param {string} url - the url of the webpage you want to fetch
        * @returns {Chat} - The current Chat instance.
@@ -333,7 +319,7 @@ const ChatGPTApp = (function () {
       this.toJson = function () {
         return {
           messages: messages,
-          functions: functions,
+          tools: tools,
           model: model,
           temperature: temperature,
           max_tokens: max_tokens,
@@ -403,28 +389,36 @@ const ChatGPTApp = (function () {
         let functionCalling = false;
 
         if (browsing) {
-          if (messages[messages.length - 1].role !== "function") {
-            functions.push(webSearchFunction);
+          if (messages[messages.length - 1].role !== "tool") {
+            tools.push({
+              type: "function",
+              function: webSearchFunction
+            });
             let messageContent = `You are able to perform search queries on Google using the function webSearch and read the search results. `;
             if (!onlyRetrieveSearchResults) {
               messageContent += "Then you can select a search result and read the page content using the function urlFetch. ";
-              functions.push(urlFetchFunction);
+              tools.push({
+                type: "function",
+                function: urlFetchFunction
+              });
             }
             messages.push({
               role: "system",
               content: messageContent
             });
-            payload.function_call = {
-              name: "webSearch"
+            payload.tool_choice = {
+              type: "function",
+              function: { name: "webSearch" }
             };
           }
-          else if (messages[messages.length - 1].role == "function" &&
+          else if (messages[messages.length - 1].role == "tool" &&
             messages[messages.length - 1].name === "webSearch" &&
             !onlyRetrieveSearchResults) {
             if (messages[messages.length - 1].content !== noResultFromWebSearchMessage) {
               // force openAI to call the function urlFetch after retrieving results for a particular search
-              payload.function_call = {
-                name: "urlFetch"
+              payload.tool_choice = {
+                type: "function",
+                function: { name: "urlFetch" }
               };
             }
           }
@@ -433,144 +427,72 @@ const ChatGPTApp = (function () {
         if (vision) {
           // Avoid hallucination & duplicated image description 
           if (!messages[messages.length - 1].content.includes("An image was given, here is the description:")) {
-            functions.push(imageDescriptionFunction);
+            tools.push({
+              type: "function",
+              function: imageDescriptionFunction
+            });
           }
         }
 
-        if (googleSheetAccess) {
-          functions.push(getDataFromGoogleSheetsFunction);
-        }
-
-        if (functions.length >> 0) {
+        if (tools.length >> 0) {
           // the user has added functions, enable function calling
           functionCalling = true;
-          let payloadFunctions = Object.keys(functions).map(f => ({
-            name: functions[f].toJSON().name,
-            description: functions[f].toJSON().description,
-            parameters: functions[f].toJSON().parameters
+          let payloadTools = Object.keys(tools).map(t => ({
+            type: "function",
+            function: {
+              name: tools[t].function.toJSON().name,
+              description: tools[t].function.toJSON().description,
+              parameters: tools[t].function.toJSON().parameters
+            }
           }));
-          payload.functions = payloadFunctions;
+          payload.tools = payloadTools;
 
-          if (!payload.function_call) {
-            payload.function_call = 'auto';
+          if (!payload.tool_choice) {
+            payload.tool_choice = 'auto';
           }
 
           if (advancedParametersObject?.function_call &&
-            JSON.stringify(payload.function_call) !== '{"name":"urlFetch"}' &&
-            JSON.stringify(payload.function_call) !== '{"name":"webSearch"}') {
+            payload.tool_choice.function?.name !== "urlFetch" &&
+            payload.tool_choice.function?.name !== "webSearch") {
             // the user has set a specific function to call
-            let function_calling = {
-              name: advancedParametersObject.function_call
+            let tool_choosing = {
+              type: "function",
+              function: {
+                name: advancedParametersObject.function_call
+              }
             };
-            payload.function_call = function_calling;
+            payload.tool_choice = tool_choosing;
+          } else if (messages[messages.length - 1].role == "tool" && messages[messages.length - 1].name == urlFetch) {
+            // Once we've opened a web page,
+            // let the model decide what to do
+            // eg: model can either be satisfied with the info found in the web page or decide to open another web page
+            payload.tool_choice = 'auto'
           }
         }
-
-        let responseMessage = callOpenAIApi(payload);
+        let responseMessage;
+        if (numberOfAPICalls <= maximumAPICalls) {
+          responseMessage = callOpenAIApi(payload);
+        } else {
+          throw new Error(`Too many calls to OpenAI API: ${numberOfAPICalls}`);
+        }
 
         if (functionCalling) {
           // Check if GPT wanted to call a function
-          if (responseMessage.function_call) {
-            // Call the function
-            let functionName = responseMessage.function_call.name;
-            let functionArgs = parseResponse(responseMessage.function_call.arguments);
-
-            let argsOrder = [];
-            let endWithResult = false;
-            let onlyReturnArguments = false;
-
-            for (let f in functions) {
-              let currentFunction = functions[f].toJSON();
-              if (currentFunction.name == functionName) {
-                argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
-                endWithResult = currentFunction.endingFunction;
-                onlyReturnArguments = currentFunction.onlyArgs;
-                break;
-              }
-            }
-
-            if (endWithResult) {
-              let functionResponse = callFunction(functionName, functionArgs, argsOrder);
-              if (typeof functionResponse != "string") {
-                if (typeof functionResponse == "object") {
-                  functionResponse = JSON.stringify(functionResponse);
-                }
-                else {
-                  functionResponse = String(functionResponse);
-                }
-              }
-              if (verbose) {
-                console.log("Conversation stopped because end function has been called");
-              }
-              return responseMessage;;
-            }
-            else if (onlyReturnArguments) {
-              if (verbose) {
-                console.log("Conversation stopped because argument return has been enabled - No function has been called");
-              }
-              return functionArgs;
-            }
-            else {
-              let functionResponse = callFunction(functionName, functionArgs, argsOrder);
-              if (typeof functionResponse != "string") {
-                if (typeof functionResponse == "object") {
-                  functionResponse = JSON.stringify(functionResponse);
-                }
-                else {
-                  functionResponse = String(functionResponse);
-                }
-              }
-
-              if (functionName == "webSearch") {
-                webSearchQueries.push(functionArgs.q);
-              }
-              else if (functionName == "urlFetch") {
-                webPagesOpened.push(functionArgs.url);
-                if (!functionResponse) {
-                  if (verbose) {
-                    console.log("The website didn't respond, going back to search results.");
-                  }
-                  let searchResults = JSON.parse(messages[messages.length - 1].content);
-                  let updatedSearchResults = searchResults.filter(function (obj) {
-                    return obj.link !== functionArgs.url;
-                  });
-                  messages[messages.length - 1].content = JSON.stringify(updatedSearchResults);
-
-                  if (advancedParametersObject) {
-                    return this.run(advancedParametersObject);
-                  }
-                  else {
-                    return this.run();
-                  }
-                }
-                // Once we've opened a web page,
-                // let the model decide what to do
-                // eg: model can either be satisfied with the info found in the web page or decide to open another web page
-                payload.function_call = "auto";
+          if (responseMessage.tool_calls) {
+            messages = handleToolCalls(responseMessage, tools, messages, webSearchQueries, webPagesOpened);
+            // check if endWithResults or onlyReturnArguments
+            if (messages[messages.length - 1].role == "system") {
+              if (messages[messages.length - 1].content == "endWithResult") {
                 if (verbose) {
-                  console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
+                  console.log("Conversation stopped because end function has been called");
                 }
-              }
-              else {
+                return messages[messages.length - 2]; // the last chat completion
+              } else if (messages[messages.length - 1].content == "onlyReturnArguments") {
                 if (verbose) {
-                  console.log(`function ${functionName}() called by OpenAI.`);
+                  console.log("Conversation stopped because argument return has been enabled - No function has been called");
                 }
+                return parseResponse(messages[messages.length - 2].tool_calls[0].function.arguments); // the argument(s) of the last function called
               }
-
-              // Inform the chat that the function has been called
-              messages.push({
-                "role": "assistant",
-                "content": null,
-                "function_call": {
-                  "name": functionName,
-                  "arguments": JSON.stringify(functionArgs)
-                }
-              });
-              messages.push({
-                "role": "function",
-                "name": functionName,
-                "content": functionResponse,
-              });
             }
             if (advancedParametersObject) {
               return this.run(advancedParametersObject);
@@ -578,6 +500,8 @@ const ChatGPTApp = (function () {
             else {
               return this.run();
             }
+
+
           }
           else {
             // if no function has been found, stop here
@@ -592,6 +516,7 @@ const ChatGPTApp = (function () {
   }
 
   function callOpenAIApi(payload) {
+    numberOfAPICalls++;
     let maxRetries = 5;
     let retries = 0;
     let success = false;
@@ -617,7 +542,7 @@ const ChatGPTApp = (function () {
         responseMessage = parsedResponse.choices[0].message;
         finish_reason = parsedResponse.choices[0].finish_reason;
         if (finish_reason == "length") {
-          console.warn(`OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property. max_tokens: ${max_tokens}, prompt_tokens: ${parsedResponse.usage.prompt_tokens}, completion_tokens: ${parsedResponse.usage.completion_tokens}`);
+          console.warn(`OpenAI response has been troncated because it was too long. To resolve this issue, you can increase the max_tokens property. max_tokens: ${payload.max_tokens}, prompt_tokens: ${parsedResponse.usage.prompt_tokens}, completion_tokens: ${parsedResponse.usage.completion_tokens}`);
         }
         success = true;
       }
@@ -628,8 +553,9 @@ const ChatGPTApp = (function () {
         Utilities.sleep(delay);
         retries++;
       }
-      else if (responseCode === 503) {
-        // The server is temporarily unavailable, wait before retrying.
+      else if (responseCode === 503 || responseCode === 500) {
+        // The server is temporarily unavailable, or an issue occured on OpenAI servers. wait before retrying.
+        // https://platform.openai.com/docs/guides/error-codes/api-errors
         let delay = Math.pow(2, retries) * 1000; // Delay in milliseconds, starting at 1 second.
         Utilities.sleep(delay);
         retries++;
@@ -646,10 +572,123 @@ const ChatGPTApp = (function () {
     }
 
     if (verbose) {
-      console.log('Got response from openAI API');
+      console.log(`Got response from openAI API.`);
     }
 
     return responseMessage;
+  }
+
+
+  /**
+   * Handles the invocation of tool functions based on the response from a chat session
+   * 
+   * First inform the chat that the function has been called
+   * https://platform.openai.com/docs/guides/function-calling
+   * Chat needs it's own response to get the tool_calls id(s), and won't go on if the following messages are not the correct tool_calls
+   * 
+   * Then iterates over the tool calls in the `responseMessage` to find matching functions in the `tools`
+   * array. It then calls these functions with the parsed arguments. Depending on the function's specification
+   * (e.g., if it's an ending function or only returns arguments), it may alter the flow of the conversation
+   * by updating the `messages` array with new messages or by returning early.
+   * 
+   * @param {Object} responseMessage - The response message object from the chat that contains the tool calls.
+   * @param {Object[]} tools - An array of tool objects that describe available tools and their specifications
+   * @param {Object[]} messages - The array of message objects to be updated with responses from tool calls.
+   * @param {string[]} webSearchQueries - An array to record search queries made as a result of the tool calls.
+   * @param {string[]} webPagesOpened - An array to record web pages opened as a result of the tool calls.
+   * @returns {Object[]} The updated array of message objects after processing the tool calls.
+   */
+  function handleToolCalls(responseMessage, tools, messages, webSearchQueries, webPagesOpened) {
+    messages.push(responseMessage);
+    for (let tool_call in responseMessage.tool_calls) {
+      if (responseMessage.tool_calls[tool_call].type == "function") {
+        // Call the function
+        let functionName = responseMessage.tool_calls[tool_call].function.name;
+        let functionArgs = parseResponse(responseMessage.tool_calls[tool_call].function.arguments);
+
+        let argsOrder = [];
+        let endWithResult = false;
+        let onlyReturnArguments = false;
+
+        for (let t in tools) {
+          let currentFunction = tools[t].function.toJSON();
+          if (currentFunction.name == functionName) {
+            argsOrder = currentFunction.argumentsInRightOrder; // get the args in the right order
+            endWithResult = currentFunction.endingFunction;
+            onlyReturnArguments = currentFunction.onlyArgs;
+            break;
+          }
+        }
+
+        if (endWithResult) {
+          // User defined that if this function has been called, then no more actions should be performed with the chat.
+          let functionResponse = callFunction(functionName, functionArgs, argsOrder);
+          if (typeof functionResponse != "string") {
+            if (typeof functionResponse == "object") {
+              functionResponse = JSON.stringify(functionResponse);
+            }
+            else {
+              functionResponse = String(functionResponse);
+            }
+          }
+          messages.push({
+            "role": "system",
+            "content": "endWithResult"
+          });
+          return messages;
+        }
+        else if (onlyReturnArguments) {
+          messages.push({
+            "role": "system",
+            "content": "onlyReturnArguments"
+          });
+          return messages;
+        }
+        else {
+          let functionResponse = callFunction(functionName, functionArgs, argsOrder);
+          if (typeof functionResponse != "string") {
+            if (typeof functionResponse == "object") {
+              functionResponse = JSON.stringify(functionResponse);
+            }
+            else {
+              functionResponse = String(functionResponse);
+            }
+          }
+
+          if (functionName == "webSearch") {
+            webSearchQueries.push(functionArgs.q);
+          }
+          else if (functionName == "urlFetch") {
+            webPagesOpened.push(functionArgs.url);
+            if (!functionResponse) {
+              if (verbose) {
+                console.log("The website didn't respond, going back to search results.");
+              }
+              let searchResults = JSON.parse(messages[messages.length - 1].content);
+              let updatedSearchResults = searchResults.filter(function (obj) {
+                return obj.link !== functionArgs.url;
+              });
+              messages[messages.length - 1].content = JSON.stringify(updatedSearchResults);
+            }
+            if (verbose) {
+              console.log("Web page opened, let model decide what to do next (open another web page or perform another action).");
+            }
+          }
+          else {
+            if (verbose) {
+              console.log(`function ${functionName}() called by OpenAI.`);
+            }
+          }
+          messages.push({
+            "tool_call_id": responseMessage.tool_calls[tool_call].id,
+            "role": "tool",
+            "name": functionName,
+            "content": functionResponse,
+          });
+        }
+      }
+    }
+    return messages;
   }
 
   function callFunction(functionName, jsonArgs, argsOrder) {
@@ -665,13 +704,6 @@ const ChatGPTApp = (function () {
         return getImageDescription(jsonArgs.imageUrl, jsonArgs.fidelity);
       } else {
         return getImageDescription(jsonArgs.imageUrl);
-      }
-    }
-    if (functionName == "getDataFromGoogleSheets") {
-      if (jsonArgs.sheetName) {
-        return getDataFromGoogleSheets(jsonArgs.spreadsheetId, jsonArgs.sheetName);
-      } else {
-        return getDataFromGoogleSheets(jsonArgs.spreadsheetId);
       }
     }
     // Parse JSON arguments
@@ -761,7 +793,7 @@ const ChatGPTApp = (function () {
         searchEngineId = restrictSearch;
       }
     }
-    url += `&cx=${searchEngineId}&q=${encodeURIComponent(q)}`;
+    url += `&cx=${searchEngineId}&q=${encodeURIComponent(q)}&num=10`;
 
     const urlfetchResp = UrlFetchApp.fetch(url);
     const resp = JSON.parse(urlfetchResp.getContentText());
@@ -772,7 +804,7 @@ const ChatGPTApp = (function () {
     }
     else {
       // https://developers.google.com/custom-search/v1/reference/rest/v1/Search?hl=en#Result
-      searchResults = JSON.stringify(resp.items.map(function (item) {
+      searchResults = JSON.stringify(resp.items.slice(0, 10).map(function (item) {
         return {
           title: item.title,
           link: item.link,
@@ -803,9 +835,10 @@ const ChatGPTApp = (function () {
       response = UrlFetchApp.fetch(url);
     }
     catch (e) {
-      console.error(`Error fetching the URL: ${e.message}`);
+
+      console.warn(`Error fetching the URL: ${e.message}`);
       return JSON.stringify({
-        error: "Failed to fetch the URL"
+        error: "Failed to fetch the URL : You are not authorized to access this website. Try another one."
       });
     }
     if (response.getResponseCode() == 200) {
@@ -819,9 +852,21 @@ const ChatGPTApp = (function () {
   }
 
   function getImageDescription(imageUrl, fidelity) {
+    const extensions = ['png', 'jpeg', 'gif', 'webp'];
+    if (!extensions.some(extension => imageUrl.toLowerCase().endsWith(`.${extension}`))) {
+      if (verbose) {
+        Logger.log({
+          message: `Tried to get description of image, but extension is not supported by OpenAI API. Supported extensions are 'png', 'jpeg', 'gif', 'webp'`,
+          imageUrl: imageUrl
+        })
+      }
+      return "This is not a supported image, no description available."
+    }
 
     if (!fidelity) {
       fidelity = "low";
+    } else {
+      fidelity = "high";
     }
 
     let imageMessage = [{
@@ -851,30 +896,6 @@ const ChatGPTApp = (function () {
     let responseMessage = callOpenAIApi(payload);
 
     return responseMessage;
-  }
-
-  function getDataFromGoogleSheets(spreadsheetId, sheetName) {
-    var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
-    var result = {};
-
-    if (sheetName) {
-      // Fetch content of the specified sheet
-      var sheet = spreadsheet.getSheetByName(sheetName);
-      if (sheet) {
-        result[sheetName] = sheet.getDataRange().getValues();
-
-      } else {
-        result.error = "Sheet with specified name not found.";
-      }
-    } else {
-      // Fetch content of every sheet
-      var sheets = spreadsheet.getSheets();
-      sheets.forEach(function (sheet) {
-        result[sheet.getName()] = sheet.getDataRange().getValues();
-      });
-    }
-
-    return result;
   }
 
   function convertHtmlToMarkdown(htmlString) {
@@ -996,6 +1017,15 @@ const ChatGPTApp = (function () {
      */
     setGoogleSearchAPIKey: function (apiKey) {
       googleCustomSearchAPIKey = apiKey;
+    },
+
+    /**
+     * If you want to limit the number of calls to the OpenAI API
+     * A good way to avoid infinity loops and manage your budget.
+     * @param {number} maxAPICalls - 
+     */
+    setMaximumAPICalls: function (maxAPICalls) {
+      maximumAPICalls = maxAPICalls;
     },
 
     /**

@@ -225,22 +225,23 @@ const ChatGPTApp = (function () {
       };
 
       /**
-      * Add an image to the chat. Will automatically get the description from gpt-4-vision-preview model and add the description as a message. 
+      * Add an image to the chat. Will automatically get the image with gpt-4-turbo-2024-04-09. 
       * @param {string} imageUrl - The URL of the image to add.
-      * @param {"low" | "high"} [fidelity] OPTIONAL - The level of fidelity for the image description
       * @returns {Chat} - The current Chat instance.
       */
-      this.addImage = function (imageUrl, fidelity) {
-        if (!fidelity) {
-          fidelity = "low";
-        }
-        let description = getImageDescription(imageUrl, fidelity);
+      this.addImage = function (imageUrl) {
         messages.push(
           {
-            role: "system",
-            content: `An image was given, here is the description:\n${description.content}` // don't give link, function calling calls it otherwise
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: imageUrl }
+              }
+            ]
           }
-        )
+        );
+        vision = true;
         return this;
       };
 
@@ -425,13 +426,7 @@ const ChatGPTApp = (function () {
         }
 
         if (vision) {
-          // Avoid hallucination & duplicated image description 
-          if (!messages[messages.length - 1].content.includes("An image was given, here is the description:")) {
-            tools.push({
-              type: "function",
-              function: imageDescriptionFunction
-            });
-          }
+          payload.model = 'gpt-4-turbo-2024-04-09';
         }
 
         if (tools.length >> 0) {

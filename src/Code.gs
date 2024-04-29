@@ -225,7 +225,7 @@ const ChatGPTApp = (function () {
       };
 
       /**
-      * Add an image to the chat. Will automatically get the image with gpt-4-turbo-2024-04-09. 
+      * Add an image to the chat. Will automatically include an image with gpt-4-turbo-2024-04-09.
       * @param {string} imageUrl - The URL of the image to add.
       * @returns {Chat} - The current Chat instance.
       */

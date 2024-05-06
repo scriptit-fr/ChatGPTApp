@@ -13,7 +13,6 @@ The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT int
 * [Add Callable Functions](#add-callable-function)
 * [Enable web browsing (optional)](#enable-web-browsing-optional)
 * [Enable Vision (optional)](#enable-vision-optional)
-* [Enable Google Sheets Access (optional)](#enable-google-sheets-access-optional)
 * [Run the Chat](#run-the-chat)
 
 ###### Examples :

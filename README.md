@@ -112,14 +112,6 @@ To enable the chat model to describe images, use the `enableVision()` method
 chat.enableVision(true);
 ```
 
-### Enable Google Sheets Access (optional)
-
-To allow the chat model to access and retrieve data from Google Sheets, use the `enableGoogleSheetAccess()` method.
-
-```javascript
-chat.enableGoogleSheetsAccess(true);
-```
-
 ### Run the Chat
 
 Once you have set up your chat, you can start the conversation by calling the `run()` method.

@@ -191,6 +191,8 @@ const ChatGPTApp = (function () {
       let knowledgeLink;
       let assistantIdentificator;
       let vectorStore;
+      let attachment;
+      let typeAttachment;
 
       let webSearchQueries = [];
       let webPagesOpened = [];
@@ -315,11 +317,17 @@ const ChatGPTApp = (function () {
        * Enable a thread run with an OpenAI assistant.
        * @param {string} assistantId - your assistant id
        * @param {string} vectorStoreDescription - a small description of the available knowledge from this assistant
+       * @param {string} idAttachment - OPTIONNAL - an ID of the document you want to attach
+       * @param {string} typeOfAttachment - type of attachment (code_interpreter or file_search)
        * @returns {Chat} - The current Chat instance.
        */
-      this.addAssistant = function (assistantId, vectorStoreDescription) {
+      this.addAssistant = function (assistantId, vectorStoreDescription, idAttachment = "", typeOfAttachment = "") {
         assistantIdentificator = assistantId;
         vectorStore = vectorStoreDescription;
+        if (attachment != "") {
+          attachment = idAttachment;
+          typeAttachment = typeOfAttachment;
+        }
         return this;
       }
 
@@ -449,15 +457,27 @@ const ChatGPTApp = (function () {
             .addParameter("assistantId", "string", "The ID of the assistant")
             .addParameter("prompt", "string", "The question you want to ask the assistant");
 
+          if (attachment) {
+            getKnowledgeFromAssistantFunction.addParameter("idAttachment", "string", "the Id of the file attached")
+            getKnowledgeFromAssistantFunction.addParameter("typeOfAttachment", "string", "type of attachment (code_interpreter or file_search)");
+          }
+
           tools.push({
             type: "function",
             function: getKnowledgeFromAssistantFunction
           });
 
-          messages.push({
-            role: "system",
-            content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
-          })
+          if (attachment) {
+            messages.push({
+              role: "system",
+              content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}, with the file "${attachment}" with the type "${typeAttachment}"`
+            })
+          } else {
+            messages.push({
+              role: "system",
+              content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
+            })
+          }
         }
 
         if (vision) {
@@ -737,7 +757,11 @@ const ChatGPTApp = (function () {
       }
     }
     if (functionName == "getKnowledgeFromAssistant") {
-      return getKnowledgeFromAssistant(jsonArgs.assistantId, jsonArgs.prompt);
+      if (jsonArgs.idAttachment) {
+        return getKnowledgeFromAssistant(jsonArgs.assistantId, jsonArgs.prompt, jsonArgs.idAttachment, jsonArgs.typeOfAttachment);
+      } else {
+        return getKnowledgeFromAssistant(jsonArgs.assistantId, jsonArgs.prompt);
+      }
     }
     // Parse JSON arguments
     var argsObj = jsonArgs;
@@ -806,7 +830,7 @@ const ChatGPTApp = (function () {
     }
   }
 
-  function getKnowledgeFromAssistant(assistantId, prompt) {
+  function getKnowledgeFromAssistant(assistantId, prompt, optionnalAttachment = "", optionnalTypeAttachment = "") {
 
     // create a thread
     var url = 'https://api.openai.com/v1/threads';
@@ -822,17 +846,83 @@ const ChatGPTApp = (function () {
     };
 
     var response = UrlFetchApp.fetch(url, options);
-    // Logger.log('Create Thread Response: ' + response.getContentText());
 
     // add a message to the thread
     let threadId = JSON.parse(response.getContentText()).id;
 
+    // Logger.log('Create Thread Response: ' + response.getContentText());
+    let messagePayloadWithAttachment;
+    if (optionnalAttachment != "") {
+      // Step 2: Generate a shareable link for the file
+      var spreadsheet = SpreadsheetApp.openById(optionnalAttachment);
+      var sheetName = spreadsheet.getName();
+
+      var url = 'https://docs.google.com/spreadsheets/d/' + optionnalAttachment + '/export?format=xlsx';
+      var token = ScriptApp.getOAuthToken();
+
+      var response = UrlFetchApp.fetch(url, {
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      });
+
+      var blob = response.getBlob().setName(sheetName + '.xlsx');
+
+      // Save the file to Google Drive
+      var file = DriveApp.createFile(blob);
+
+      var file2 = DriveApp.getFileById(file.getId());
+
+      var fileBlob = file2.getBlob();
+
+      // Step 3: Upload the file to OpenAI
+      url = 'https://api.openai.com/v1/files';
+
+      var formData = {
+        'file': fileBlob,
+        'purpose': 'assistants'
+      };
+
+      var uploadOptions = {
+        'method': 'post',
+        'headers': {
+          'Authorization': 'Bearer ' + openAIKey
+        },
+        'payload': formData,
+        'muteHttpExceptions': true
+      };
+
+      response = UrlFetchApp.fetch(url, uploadOptions);
+      var uploadedFileResponse = JSON.parse(response.getContentText());
+      if (uploadedFileResponse.error) {
+        Logger.log('Error: ' + uploadedFileResponse.error.message);
+        return;
+      }
+      var openAiFileId = uploadedFileResponse.id;
+
+      messagePayloadWithAttachment = {
+        "role": "user",
+        "content": prompt,
+        "attachments": [
+          {
+            "file_id": openAiFileId,
+            "tools": [{ "type": optionnalTypeAttachment }]
+          }
+        ]
+      };
+    }
+
     url = `https://api.openai.com/v1/threads/${threadId}/messages`;
 
-    let messagePayload = {
-      "role": "user",
-      "content": prompt
-    };
+    let messagePayload;
+    if (messagePayloadWithAttachment === undefined) {
+      messagePayload = {
+        "role": "user",
+        "content": prompt
+      };
+    } else {
+      messagePayload = messagePayloadWithAttachment;
+    }
 
     options = {
       'method': 'post',

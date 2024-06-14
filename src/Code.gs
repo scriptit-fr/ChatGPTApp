@@ -317,7 +317,7 @@ const ChatGPTApp = (function () {
        * @param {string} vectorStoreDescription - a small description of the available knowledge from this assistant
        * @returns {Chat} - The current Chat instance.
        */
-      this.addAssistant = function (assistantId, vectorStoreDescription) {
+      this.retrieveKnowledgeFromAssistant = function (assistantId, vectorStoreDescription) {
         assistantIdentificator = assistantId;
         vectorStore = vectorStoreDescription;
         return this;
@@ -443,15 +443,15 @@ const ChatGPTApp = (function () {
 
         if (assistantIdentificator) {
           // This function is created only here to adapt the functiondescription to the vector store content
-          let getKnowledgeFromAssistantFunction = new FunctionObject()
-            .setName("getKnowledgeFromAssistant")
+          let runOpenAIAssistantFunction = new FunctionObject()
+            .setName("runOpenAIAssistant")
             .setDescription(`To retrieve information from : ${vectorStore}`)
             .addParameter("assistantId", "string", "The ID of the assistant")
             .addParameter("prompt", "string", "The question you want to ask the assistant");
 
           tools.push({
             type: "function",
-            function: getKnowledgeFromAssistantFunction
+            function: runOpenAIAssistantFunction
           });
 
           messages.push({
@@ -736,8 +736,8 @@ const ChatGPTApp = (function () {
         return getImageDescription(jsonArgs.imageUrl);
       }
     }
-    if (functionName == "getKnowledgeFromAssistant") {
-      return getKnowledgeFromAssistant(jsonArgs.assistantId, jsonArgs.prompt);
+    if (functionName == "runOpenAIAssistant") {
+      return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt);
     }
     // Parse JSON arguments
     var argsObj = jsonArgs;
@@ -806,7 +806,7 @@ const ChatGPTApp = (function () {
     }
   }
 
-  function getKnowledgeFromAssistant(assistantId, prompt) {
+  function runOpenAIAssistant(assistantId, prompt) {
 
     // create a thread
     var url = 'https://api.openai.com/v1/threads';

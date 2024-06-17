@@ -878,14 +878,7 @@ const ChatGPTApp = (function () {
         }
       });
 
-      var blob = response.getBlob().setName(sheetName + '.xlsx');
-
-      // Save the file to Google Drive
-      var file = DriveApp.createFile(blob);
-
-      var file2 = DriveApp.getFileById(file.getId());
-
-      var fileBlob = file2.getBlob();
+      var fileBlob = response.getBlob().setName(sheetName + '.xlsx');
 
       // Step 3: Upload the file to OpenAI
       url = 'https://api.openai.com/v1/files';

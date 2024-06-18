@@ -191,7 +191,7 @@ const ChatGPTApp = (function () {
       let knowledgeLink;
       let assistantIdentificator;
       let vectorStore;
-      let attachment;
+      let attachmentIdentificator;
       let typeAttachment;
 
       let webSearchQueries = [];
@@ -338,7 +338,7 @@ const ChatGPTApp = (function () {
       this.retrieveKnowledgeFromAssistantWithAttachment = function (assistantId, vectorStoreDescription, idAttachment, typeOfAttachment) {
         assistantIdentificator = assistantId;
         vectorStore = vectorStoreDescription;
-        attachment = idAttachment;
+        attachmentIdentificator = idAttachment;
         typeAttachment = typeOfAttachment;
         return this;
       }
@@ -469,7 +469,7 @@ const ChatGPTApp = (function () {
             .addParameter("assistantId", "string", "The ID of the assistant")
             .addParameter("prompt", "string", "The question you want to ask the assistant");
 
-          if (attachment) {
+          if (attachmentIdentificator) {
             runOpenAIAssistantFunction.addParameter("idAttachment", "string", "the Id of the file attached")
             runOpenAIAssistantFunction.addParameter("typeOfAttachment", "string", "type of attachment (code_interpreter or file_search)");
           }
@@ -479,10 +479,10 @@ const ChatGPTApp = (function () {
             function: runOpenAIAssistantFunction
           });
 
-          if (attachment) {
+          if (attachmentIdentificator) {
             messages.push({
               role: "system",
-              content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}, with the file "${attachment}" with the type "${typeAttachment}"`
+              content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}, with the file "${attachmentIdentificator}" with the type "${typeAttachment}"`
             })
           } else {
             messages.push({
@@ -865,7 +865,6 @@ const ChatGPTApp = (function () {
 
     let messagePayloadWithAttachment;
     if (optionnalAttachment != "") {
-      // Step 2: Generate a shareable link for the file
       var spreadsheet = SpreadsheetApp.openById(optionnalAttachment);
       var sheetName = spreadsheet.getName();
 

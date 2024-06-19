@@ -25,9 +25,6 @@ const ChatGPTApp = (function () {
   let googleCustomSearchAPIKey = "";
   let restrictSearch;
 
-  let maximumAPICalls = 30;
-  let numberOfAPICalls = 0;
-
   let verbose = true;
 
   const noResultFromWebSearchMessage = `Your search did not match any documents. 
@@ -193,6 +190,9 @@ const ChatGPTApp = (function () {
       let webSearchQueries = [];
       let webPagesOpened = [];
 
+      let maximumAPICalls = 30;
+      let numberOfAPICalls = 0;
+
       /**
        * Add a message to the chat.
        * @param {string} messageContent - The message to be added.
@@ -317,6 +317,15 @@ const ChatGPTApp = (function () {
         return this;
       };
 
+      /**
+       * If you want to limit the number of calls to the OpenAI API
+       * A good way to avoid infinity loops and manage your budget.
+       * @param {number} maxAPICalls - 
+       */
+      this.setMaximumAPICalls = function (maxAPICalls) {
+        maximumAPICalls = maxAPICalls;
+      };
+
       this.toJson = function () {
         return {
           messages: messages,
@@ -326,7 +335,9 @@ const ChatGPTApp = (function () {
           max_tokens: max_tokens,
           browsing: browsing,
           webSearchQueries: webSearchQueries,
-          webPagesOpened: webPagesOpened
+          webPagesOpened: webPagesOpened,
+          maximumAPICalls: maximumAPICalls,
+          numberOfAPICalls: numberOfAPICalls
         };
       };
 
@@ -467,6 +478,7 @@ const ChatGPTApp = (function () {
         let responseMessage;
         if (numberOfAPICalls <= maximumAPICalls) {
           responseMessage = callOpenAIApi(payload);
+          numberOfAPICalls++;
         } else {
           throw new Error(`Too many calls to OpenAI API: ${numberOfAPICalls}`);
         }
@@ -511,7 +523,6 @@ const ChatGPTApp = (function () {
   }
 
   function callOpenAIApi(payload) {
-    numberOfAPICalls++;
     let maxRetries = 5;
     let retries = 0;
     let success = false;
@@ -983,7 +994,6 @@ const ChatGPTApp = (function () {
   return {
     /**
      * Create a new chat.
-     * @params {string} apiKey - Your openAI API key.
      * @returns {Chat} - A new Chat instance.
      */
     newChat: function () {
@@ -1012,15 +1022,6 @@ const ChatGPTApp = (function () {
      */
     setGoogleSearchAPIKey: function (apiKey) {
       googleCustomSearchAPIKey = apiKey;
-    },
-
-    /**
-     * If you want to limit the number of calls to the OpenAI API
-     * A good way to avoid infinity loops and manage your budget.
-     * @param {number} maxAPICalls - 
-     */
-    setMaximumAPICalls: function (maxAPICalls) {
-      maximumAPICalls = maxAPICalls;
     },
 
     /**

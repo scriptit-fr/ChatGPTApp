@@ -469,6 +469,13 @@ const ChatGPTApp = (function () {
             role: "system",
             content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
           })
+
+          if (numberOfAPICalls == 0) {
+            payload.tool_choice = {
+              type: "function",
+              function: { name: "runOpenAIAssistant" }
+            };
+          }
         }
 
         if (vision) {

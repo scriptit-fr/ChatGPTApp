@@ -459,6 +459,7 @@ const ChatGPTApp = (function () {
             .setDescription(`To retrieve information from : ${vectorStore}`)
             .addParameter("assistantId", "string", "The ID of the assistant")
             .addParameter("prompt", "string", "The question you want to ask the assistant")
+            .endWithResult(true);
 
           if (numberOfAPICalls == 0) {
 
@@ -566,7 +567,6 @@ const ChatGPTApp = (function () {
   }
 
   function callOpenAIApi(payload) {
-    console.log(payload)
     let maxRetries = 5;
     let retries = 0;
     let success = false;
@@ -681,6 +681,10 @@ const ChatGPTApp = (function () {
               functionResponse = String(functionResponse);
             }
           }
+          messages.push({
+            "role": "system",
+            "content": functionResponse
+          });
           messages.push({
             "role": "system",
             "content": "endWithResult"
@@ -963,7 +967,10 @@ const ChatGPTApp = (function () {
         references: references
       });
 
-      return JSON.stringify(data.value);
+      return JSON.stringify({
+        response: JSON.stringify(data.value),
+        references: references
+      });
 
     } catch (e) {
       Logger.log('Error retrieving assistant response: ' + e.message);

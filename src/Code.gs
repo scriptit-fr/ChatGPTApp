@@ -460,17 +460,19 @@ const ChatGPTApp = (function () {
             .addParameter("assistantId", "string", "The ID of the assistant")
             .addParameter("prompt", "string", "The question you want to ask the assistant");
 
-          tools.push({
-            type: "function",
-            function: runOpenAIAssistantFunction
-          });
-
-          messages.push({
-            role: "system",
-            content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
-          })
 
           if (numberOfAPICalls == 0) {
+
+            tools.push({
+              type: "function",
+              function: runOpenAIAssistantFunction
+            });
+
+            messages.push({
+              role: "system",
+              content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
+            });
+
             payload.tool_choice = {
               type: "function",
               function: { name: "runOpenAIAssistant" }
@@ -565,6 +567,7 @@ const ChatGPTApp = (function () {
   }
 
   function callOpenAIApi(payload) {
+    console.log(payload)
     let maxRetries = 5;
     let retries = 0;
     let success = false;

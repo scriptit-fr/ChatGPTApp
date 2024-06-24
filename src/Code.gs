@@ -188,6 +188,8 @@ const ChatGPTApp = (function () {
       let knowledgeLink;
       let assistantIdentificator;
       let vectorStore;
+      let attachmentIdentificator;
+      let typeAttachment;
 
       let webSearchQueries = [];
       let webPagesOpened = [];
@@ -320,6 +322,24 @@ const ChatGPTApp = (function () {
       this.retrieveKnowledgeFromAssistant = function (assistantId, vectorStoreDescription) {
         assistantIdentificator = assistantId;
         vectorStore = vectorStoreDescription;
+        return this;
+      }
+
+      /**
+       * OPTIONAL
+       * 
+       * Enable a thread run with an OpenAI assistant.
+       * @param {string} assistantId - your assistant id
+       * @param {string} vectorStoreDescription - a small description of the available knowledge from this assistant
+       * @param {string} idAttachment - an ID of the document you want to attach
+       * @param {string} typeOfAttachment - type of attachment (code_interpreter or file_search)
+       * @returns {Chat} - The current Chat instance.
+       */
+      this.retrieveKnowledgeFromAssistantWithAttachment = function (assistantId, vectorStoreDescription, idAttachment, typeOfAttachment) {
+        assistantIdentificator = assistantId;
+        vectorStore = vectorStoreDescription;
+        attachmentIdentificator = idAttachment;
+        typeAttachment = typeOfAttachment;
         return this;
       }
 
@@ -461,6 +481,11 @@ const ChatGPTApp = (function () {
             .addParameter("prompt", "string", "The question you want to ask the assistant")
             .endWithResult(true);
 
+          if (attachmentIdentificator) {
+            runOpenAIAssistantFunction.addParameter("idAttachment", "string", "the Id of the file attached")
+            runOpenAIAssistantFunction.addParameter("typeOfAttachment", "string", "type of attachment (code_interpreter or file_search)");
+          }
+
           if (numberOfAPICalls == 0) {
 
             tools.push({
@@ -468,10 +493,17 @@ const ChatGPTApp = (function () {
               function: runOpenAIAssistantFunction
             });
 
-            messages.push({
-              role: "system",
-              content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
-            });
+            if (attachmentIdentificator) {
+              messages.push({
+                role: "system",
+                content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}, with the file "${attachmentIdentificator}" with the type "${typeAttachment}"`
+              });
+            } else {
+              messages.push({
+                role: "system",
+                content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
+              });
+            }
 
             payload.tool_choice = {
               type: "function",
@@ -830,7 +862,23 @@ const ChatGPTApp = (function () {
     }
   }
 
-  function runOpenAIAssistant(assistantId, prompt) {
+  function getFileType(fileId) {
+    var file = DriveApp.getFileById(fileId);
+    var mimeType = file.getMimeType();
+    
+    switch (mimeType) {
+      case 'application/vnd.google-apps.spreadsheet':
+        return 'spreadsheet';
+      case 'application/vnd.google-apps.document':
+        return 'document';
+      case 'application/vnd.google-apps.presentation':
+        return 'presentation';
+      default:
+        throw new Error('Unsupported file type: ' + mimeType);
+    }
+  }
+
+  function runOpenAIAssistant(assistantId, prompt, optionnalAttachment = "", optionnalTypeAttachment = "") {
 
     // create a thread
     var url = 'https://api.openai.com/v1/threads';
@@ -851,12 +899,83 @@ const ChatGPTApp = (function () {
     // add a message to the thread
     let threadId = JSON.parse(response.getContentText()).id;
 
+    let messagePayloadWithAttachment;
+    if (optionnalAttachment != "") {
+
+      var fileType = getFileType(optionnalAttachment);
+      let url;
+      Logger.log(fileType);
+      
+      switch (fileType) {
+        case 'spreadsheet':
+          url = 'https://docs.google.com/spreadsheets/d/' + optionnalAttachment + '/export?format=xlsx';
+          break;
+        case 'document':
+          url = 'https://docs.google.com/document/d/' + optionnalAttachment + '/export?format=docx';
+          break;
+        case 'presentation':
+          url = 'https://docs.google.com/presentation/d/' + optionnalAttachment + '/export/pptx';
+          break;
+      }
+
+      var token = ScriptApp.getOAuthToken();
+
+      var response = UrlFetchApp.fetch(url, {
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      });
+
+      var fileBlob = response.getBlob()
+
+      // Step 3: Upload the file to OpenAI
+      url = 'https://api.openai.com/v1/files';
+
+      var formData = {
+        'file': fileBlob,
+        'purpose': 'assistants'
+      };
+
+      var uploadOptions = {
+        'method': 'post',
+        'headers': {
+          'Authorization': 'Bearer ' + openAIKey
+        },
+        'payload': formData,
+        'muteHttpExceptions': true
+      };
+
+      response = UrlFetchApp.fetch(url, uploadOptions);
+      var uploadedFileResponse = JSON.parse(response.getContentText());
+      if (uploadedFileResponse.error) {
+        Logger.log('Error: ' + uploadedFileResponse.error.message);
+        return;
+      }
+      var openAiFileId = uploadedFileResponse.id;
+
+      messagePayloadWithAttachment = {
+        "role": "user",
+        "content": prompt,
+        "attachments": [
+          {
+            "file_id": openAiFileId,
+            "tools": [{ "type": optionnalTypeAttachment }]
+          }
+        ]
+      };
+    }
+
     url = `https://api.openai.com/v1/threads/${threadId}/messages`;
 
-    let messagePayload = {
-      "role": "user",
-      "content": prompt
-    };
+    let messagePayload;
+    if (messagePayloadWithAttachment === undefined) {
+      messagePayload = {
+        "role": "user",
+        "content": prompt
+      };
+    } else {
+      messagePayload = messagePayloadWithAttachment;
+    }
 
     options = {
       'method': 'post',

@@ -604,7 +604,7 @@ const ChatGPTApp = (function () {
    * @param {string[]} webPagesOpened - An array to record web pages opened as a result of the tool calls.
    * @returns {Object[]} The updated array of message objects after processing the tool calls.
    */
-  function handleToolCalls(responseMessage, tools, messages, webSearchQueries, webPagesOpened) {
+   function handleToolCalls(responseMessage, tools, messages, webSearchQueries, webPagesOpened) {
     messages.push(responseMessage);
     for (let tool_call in responseMessage.tool_calls) {
       if (responseMessage.tool_calls[tool_call].type == "function") {
@@ -638,12 +638,24 @@ const ChatGPTApp = (function () {
             }
           }
           messages.push({
+            "tool_call_id": responseMessage.tool_calls[tool_call].id,
+            "role": "tool",
+            "name": functionName,
+            "content": functionResponse,
+          });
+          messages.push({
             "role": "system",
             "content": "endWithResult"
           });
           return messages;
         }
         else if (onlyReturnArguments) {
+          messages.push({
+            "tool_call_id": responseMessage.tool_calls[tool_call].id,
+            "role": "tool",
+            "name": functionName,
+            "content": "",
+          });
           messages.push({
             "role": "system",
             "content": "onlyReturnArguments"

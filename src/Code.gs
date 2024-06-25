@@ -188,6 +188,8 @@ const ChatGPTApp = (function () {
       let knowledgeLink;
       let assistantIdentificator;
       let vectorStore;
+      let attachmentIdentificator;
+      let assistantTools;
 
       let webSearchQueries = [];
       let webPagesOpened = [];
@@ -320,6 +322,24 @@ const ChatGPTApp = (function () {
       this.retrieveKnowledgeFromAssistant = function (assistantId, vectorStoreDescription) {
         assistantIdentificator = assistantId;
         vectorStore = vectorStoreDescription;
+        return this;
+      }
+
+      /**
+       * OPTIONAL
+       * 
+       * Enable a thread run with an OpenAI assistant.
+       * @param {string} assistantId - your assistant id
+       * @param {string} vectorStoreDescription - a small description of the available knowledge from this assistant
+       * @param {string} attachmentId - the ID of the document you want to attach
+       * @param {string} assistantTool - the tool you want to enable on the assistant (code_interpreter or file_search)
+       * @returns {Chat} - The current Chat instance.
+       */
+      this.retrieveKnowledgeFromAssistantWithAttachment = function (assistantId, vectorStoreDescription, attachmentId, assistantTool) {
+        assistantIdentificator = assistantId;
+        vectorStore = vectorStoreDescription;
+        attachmentIdentificator = attachmentId;
+        assistantTools = assistantTool;
         return this;
       }
 
@@ -461,6 +481,11 @@ const ChatGPTApp = (function () {
             .addParameter("prompt", "string", "The question you want to ask the assistant")
             .endWithResult(true);
 
+          if (attachmentIdentificator) {
+            runOpenAIAssistantFunction.addParameter("attachmentId", "string", "the Id of the file attached")
+            runOpenAIAssistantFunction.addParameter("assistantTool", "string", "type of tool (code_interpreter or file_search)");
+          }
+
           if (numberOfAPICalls == 0) {
 
             tools.push({
@@ -468,10 +493,17 @@ const ChatGPTApp = (function () {
               function: runOpenAIAssistantFunction
             });
 
-            messages.push({
-              role: "system",
-              content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
-            });
+            if (attachmentIdentificator) {
+              messages.push({
+                role: "system",
+                content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}. Attached, you can use the ${typeAttachment} file: "${attachmentIdentificator}"`
+              });
+            } else {
+              messages.push({
+                role: "system",
+                content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
+              });
+            }
 
             payload.tool_choice = {
               type: "function",
@@ -761,7 +793,11 @@ const ChatGPTApp = (function () {
       }
     }
     if (functionName == "runOpenAIAssistant") {
-      return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt);
+      if (jsonArgs.attachmentId) {
+        return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt, jsonArgs.attachmentId, jsonArgs.assistantTool);
+      } else {
+        return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt);
+      }
     }
     // Parse JSON arguments
     var argsObj = jsonArgs;
@@ -830,7 +866,16 @@ const ChatGPTApp = (function () {
     }
   }
 
-  function runOpenAIAssistant(assistantId, prompt) {
+  /**
+  * Runs an OpenAI assistant with the provided prompt and optional attachment.
+  * 
+  * @param {string} assistantId - The ID of the OpenAI assistant to run.
+  * @param {string} prompt - The prompt to send to the assistant.
+  * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
+  * @param {string} [optionalAssistantTools] - The type of the optional attachment (spreadsheet, document, presentation).
+  * @returns {string} The assistant's response and references in JSON format.
+  */
+  function runOpenAIAssistant(assistantId, prompt, optionnalAttachment, optionnalAssistantTools) {
 
     // create a thread
     var url = 'https://api.openai.com/v1/threads';
@@ -851,12 +896,87 @@ const ChatGPTApp = (function () {
     // add a message to the thread
     let threadId = JSON.parse(response.getContentText()).id;
 
+    let messagePayloadWithAttachment;
+    if (optionnalAttachment) {
+      try {
+        var file = DriveApp.getFileById(optionnalAttachment);
+        var mimeType = file.getMimeType();
+        let fileBlobUrl;
+
+        switch (mimeType) {
+          case "application/vnd.google-apps.spreadsheet":
+            fileBlobUrl = 'https://docs.google.com/spreadsheets/d/' + optionnalAttachment + '/export?format=xlsx';
+            break;
+          case "application/vnd.google-apps.document":
+            fileBlobUrl = 'https://docs.google.com/document/d/' + optionnalAttachment + '/export?format=docx';
+            break;
+          case "application/vnd.google-apps.presentation":
+            fileBlobUrl = 'https://docs.google.com/presentation/d/' + optionnalAttachment + '/export/pptx';
+            break;
+        }
+
+        var token = ScriptApp.getOAuthToken();
+
+        // Fetch the file from Google Drive using the generated URL and OAuth token
+        var response = UrlFetchApp.fetch(fileBlobUrl, {
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
+        });
+
+        var fileBlob = response.getBlob()
+
+        // Upload the file to OpenAI
+        openAIFileEndpoint = 'https://api.openai.com/v1/files';
+
+        var formData = {
+          'file': fileBlob,
+          'purpose': 'assistants'
+        };
+
+        var uploadOptions = {
+          'method': 'post',
+          'headers': {
+            'Authorization': 'Bearer ' + openAIKey
+          },
+          'payload': formData,
+          'muteHttpExceptions': true
+        };
+
+        response = UrlFetchApp.fetch(openAIFileEndpoint, uploadOptions);
+        var uploadedFileResponse = JSON.parse(response.getContentText());
+        if (uploadedFileResponse.error) {
+          throw new Error('Error: ' + uploadedFileResponse.error.message);
+          return;
+        }
+        var openAiFileId = uploadedFileResponse.id;
+
+        messagePayloadWithAttachment = {
+          "role": "user",
+          "content": prompt,
+          "attachments": [
+            {
+              "file_id": openAiFileId,
+              "tools": [{ "type": optionnalAssistantTools }]
+            }
+          ]
+        };
+      } catch (e) {
+        Logger.log('Error retrieving the file : ' + e.message);
+      }
+    }
+
     url = `https://api.openai.com/v1/threads/${threadId}/messages`;
 
-    let messagePayload = {
-      "role": "user",
-      "content": prompt
-    };
+    let messagePayload;
+    if (!messagePayloadWithAttachment) {
+      messagePayload = {
+        "role": "user",
+        "content": prompt
+      };
+    } else {
+      messagePayload = messagePayloadWithAttachment;
+    }
 
     options = {
       'method': 'post',

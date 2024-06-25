@@ -189,7 +189,7 @@ const ChatGPTApp = (function () {
       let assistantIdentificator;
       let vectorStore;
       let attachmentIdentificator;
-      let attachmentType;
+      let assistantTools;
 
       let webSearchQueries = [];
       let webPagesOpened = [];
@@ -332,14 +332,14 @@ const ChatGPTApp = (function () {
        * @param {string} assistantId - your assistant id
        * @param {string} vectorStoreDescription - a small description of the available knowledge from this assistant
        * @param {string} attachmentId - the ID of the document you want to attach
-       * @param {string} assistantTool - type of attachment (code_interpreter or file_search)
+       * @param {string} assistantTool - the tool you want to enable on the assistant (code_interpreter or file_search)
        * @returns {Chat} - The current Chat instance.
        */
       this.retrieveKnowledgeFromAssistantWithAttachment = function (assistantId, vectorStoreDescription, attachmentId, assistantTool) {
         assistantIdentificator = assistantId;
         vectorStore = vectorStoreDescription;
         attachmentIdentificator = attachmentId;
-        attachmentType = assistantTool;
+        assistantTools = assistantTool;
         return this;
       }
 
@@ -872,10 +872,10 @@ const ChatGPTApp = (function () {
   * @param {string} assistantId - The ID of the OpenAI assistant to run.
   * @param {string} prompt - The prompt to send to the assistant.
   * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
-  * @param {string} [optionalAttachmentType] - The type of the optional attachment (spreadsheet, document, presentation).
+  * @param {string} [optionalAssistantTools] - The type of the optional attachment (spreadsheet, document, presentation).
   * @returns {string} The assistant's response and references in JSON format.
   */
-  function runOpenAIAssistant(assistantId, prompt, optionnalAttachment, optionnalAttachmentType) {
+  function runOpenAIAssistant(assistantId, prompt, optionnalAttachment, optionnalAssistantTools) {
 
     // create a thread
     var url = 'https://api.openai.com/v1/threads';
@@ -957,7 +957,7 @@ const ChatGPTApp = (function () {
           "attachments": [
             {
               "file_id": openAiFileId,
-              "tools": [{ "type": optionnalAttachmentType }]
+              "tools": [{ "type": optionnalAssistantTools }]
             }
           ]
         };

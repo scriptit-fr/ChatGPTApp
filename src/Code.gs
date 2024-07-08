@@ -330,16 +330,12 @@ const ChatGPTApp = (function () {
        * 
        * Enable a thread run with an OpenAI assistant.
        * @param {string} assistantId - your assistant id
-       * @param {string} vectorStoreDescription - a small description of the available knowledge from this assistant
        * @param {string} attachmentId - the ID of the document you want to attach
-       * @param {string} assistantTool - the tool you want to enable on the assistant (code_interpreter or file_search)
        * @returns {Chat} - The current Chat instance.
        */
-      this.retrieveKnowledgeFromAssistantWithAttachment = function (assistantId, vectorStoreDescription, attachmentId, assistantTool) {
+      this.analyzeDocumentWithAssistant = function (assistantId, attachmentId) {
         assistantIdentificator = assistantId;
-        vectorStore = vectorStoreDescription;
         attachmentIdentificator = attachmentId;
-        assistantTools = assistantTool;
         return this;
       }
 
@@ -482,8 +478,8 @@ const ChatGPTApp = (function () {
             .endWithResult(true);
 
           if (attachmentIdentificator) {
-            runOpenAIAssistantFunction.addParameter("attachmentId", "string", "the Id of the file attached")
-            runOpenAIAssistantFunction.addParameter("assistantTool", "string", "type of tool (code_interpreter or file_search)");
+            runOpenAIAssistantFunction.setDescription("To analyze a file with code interpreter")
+            runOpenAIAssistantFunction.addParameter("attachmentId", "string", "the Id of the file attached");
           }
 
           if (numberOfAPICalls == 0) {
@@ -496,7 +492,7 @@ const ChatGPTApp = (function () {
             if (attachmentIdentificator) {
               messages.push({
                 role: "system",
-                content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}. Attached, you can use the ${typeAttachment} file: "${attachmentIdentificator}"`
+                content: `You can use the assistant ${assistantIdentificator} to analyze this file: "${attachmentIdentificator}"`
               });
             } else {
               messages.push({
@@ -794,7 +790,7 @@ const ChatGPTApp = (function () {
     }
     if (functionName == "runOpenAIAssistant") {
       if (jsonArgs.attachmentId) {
-        return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt, jsonArgs.attachmentId, jsonArgs.assistantTool);
+        return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt, jsonArgs.attachmentId);
       } else {
         return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt);
       }
@@ -872,10 +868,9 @@ const ChatGPTApp = (function () {
   * @param {string} assistantId - The ID of the OpenAI assistant to run.
   * @param {string} prompt - The prompt to send to the assistant.
   * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
-  * @param {string} [optionalAssistantTools] - The type of the optional attachment (spreadsheet, document, presentation).
   * @returns {string} The assistant's response and references in JSON format.
   */
-  function runOpenAIAssistant(assistantId, prompt, optionnalAttachment, optionnalAssistantTools) {
+  function runOpenAIAssistant(assistantId, prompt, optionnalAttachment) {
 
     // create a thread
     var url = 'https://api.openai.com/v1/threads';
@@ -957,7 +952,7 @@ const ChatGPTApp = (function () {
           "attachments": [
             {
               "file_id": openAiFileId,
-              "tools": [{ "type": optionnalAssistantTools }]
+              "tools": [{ "type": "code_interpreter" }]
             }
           ]
         };

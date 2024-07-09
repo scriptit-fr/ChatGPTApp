@@ -886,7 +886,6 @@ const ChatGPTApp = (function () {
     };
 
     var response = UrlFetchApp.fetch(url, options);
-    // Logger.log('Create Thread Response: ' + response.getContentText());
 
     // add a message to the thread
     let threadId = JSON.parse(response.getContentText()).id;
@@ -925,8 +924,7 @@ const ChatGPTApp = (function () {
 
         var fileBlob = response.getBlob()
 
-        // Upload the file to OpenAI
-        openAIFileEndpoint = 'https://api.openai.com/v1/files';
+        const openAIFileEndpoint = 'https://api.openai.com/v1/files';
 
         var formData = {
           'file': fileBlob,
@@ -946,7 +944,6 @@ const ChatGPTApp = (function () {
         var uploadedFileResponse = JSON.parse(response.getContentText());
         if (uploadedFileResponse.error) {
           throw new Error('Error: ' + uploadedFileResponse.error.message);
-          return;
         }
         var openAiFileId = uploadedFileResponse.id;
 
@@ -993,17 +990,15 @@ const ChatGPTApp = (function () {
     };
 
     response = UrlFetchApp.fetch(url, options);
-    // Logger.log('Run Assistant Response: ' + response.getContentText());
 
     let runId = JSON.parse(response.getContentText()).id;
 
     // Monitor the run status until completion
     let status = "queued";
-    let attempts = 0;
-    const maxAttempts = 10;
+
     const sleepTime = 30000; // 5 seconds
 
-    while (status === "queued") { // && attempts < maxAttempts) {
+    while (status === "queued") { 
       Utilities.sleep(sleepTime);
       url = `https://api.openai.com/v1/threads/${threadId}/runs/${runId}`;
 
@@ -1017,18 +1012,14 @@ const ChatGPTApp = (function () {
       };
 
       response = UrlFetchApp.fetch(url, statusOptions);
-      // Logger.log('Run Status Response: ' + response.getContentText());
-
       let runStatus = JSON.parse(response.getContentText());
       status = runStatus.status;
-      attempts++;
     }
 
     if (status !== "completed") {
       Logger.log('Run did not complete in time.');
       return;
     }
-    // console.log(`Assistant answer time: ${attempts * 5} seconds`);
 
     // see the thread messages 
     url = 'https://api.openai.com/v1/threads/' + threadId + '/messages';

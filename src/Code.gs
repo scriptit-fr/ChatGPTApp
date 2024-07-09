@@ -330,7 +330,7 @@ const ChatGPTApp = (function () {
        * 
        * Enable a thread run with an OpenAI assistant.
        * @param {string} assistantId - your assistant id
-       * @param {string} attachmentId - the ID of the document you want to attach
+       * @param {string} attachmentId - the Drive ID of the document you want to attach
        * @returns {Chat} - The current Chat instance.
        */
       this.analyzeDocumentWithAssistant = function (assistantId, attachmentId) {
@@ -891,7 +891,11 @@ const ChatGPTApp = (function () {
     // add a message to the thread
     let threadId = JSON.parse(response.getContentText()).id;
 
-    let messagePayloadWithAttachment;
+    let messagePayload = {
+      "role": "user",
+      "content": prompt
+    };
+    
     if (optionnalAttachment) {
       try {
         var file = DriveApp.getFileById(optionnalAttachment);
@@ -946,32 +950,18 @@ const ChatGPTApp = (function () {
         }
         var openAiFileId = uploadedFileResponse.id;
 
-        messagePayloadWithAttachment = {
-          "role": "user",
-          "content": prompt,
-          "attachments": [
-            {
-              "file_id": openAiFileId,
-              "tools": [{ "type": "code_interpreter" }]
-            }
-          ]
-        };
+        messagePayload.attachments = [
+          {
+            "file_id": openAiFileId,
+            "tools": [{ "type": "code_interpreter" }]
+          }
+        ];
       } catch (e) {
         Logger.log('Error retrieving the file : ' + e.message);
       }
     }
 
     url = `https://api.openai.com/v1/threads/${threadId}/messages`;
-
-    let messagePayload;
-    if (!messagePayloadWithAttachment) {
-      messagePayload = {
-        "role": "user",
-        "content": prompt
-      };
-    } else {
-      messagePayload = messagePayloadWithAttachment;
-    }
 
     options = {
       'method': 'post',
@@ -984,7 +974,6 @@ const ChatGPTApp = (function () {
     };
 
     response = UrlFetchApp.fetch(url, options);
-    // Logger.log('Add Message Response: ' + response.getContentText());
 
     // run the thread with the assistant 
     url = `https://api.openai.com/v1/threads/${threadId}/runs`;

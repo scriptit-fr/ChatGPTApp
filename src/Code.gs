@@ -867,7 +867,7 @@ const ChatGPTApp = (function () {
   * 
   * @param {string} assistantId - The ID of the OpenAI assistant to run.
   * @param {string} prompt - The prompt to send to the assistant.
-  * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
+  * @param {string} [optionnalAttachment] - The optional attachment ID from Google Drive.
   * @returns {string} The assistant's response and references in JSON format.
   */
   function runOpenAIAssistant(assistantId, prompt, optionnalAttachment) {

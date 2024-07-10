@@ -469,7 +469,7 @@ const ChatGPTApp = (function () {
         }
 
         if (assistantIdentificator) {
-          // This function is created only here to adapt the functiondescription to the vector store content
+          // This function is created only here to adapt the function description to the vector store content
           let runOpenAIAssistantFunction = new FunctionObject()
             .setName("runOpenAIAssistant")
             .setDescription(`To retrieve information from : ${vectorStore}`)
@@ -863,18 +863,12 @@ const ChatGPTApp = (function () {
   }
 
   /**
-  * Runs an OpenAI assistant with the provided prompt and optional attachment.
-  * 
-  * @param {string} assistantId - The ID of the OpenAI assistant to run.
-  * @param {string} prompt - The prompt to send to the assistant.
-  * @param {string} [optionnalAttachment] - The optional attachment ID from Google Drive.
-  * @returns {string} The assistant's response and references in JSON format.
-  */
-  function runOpenAIAssistant(assistantId, prompt, optionnalAttachment) {
-
-    // create a thread
+   * Creates a new thread and returns the thread ID.
+   * 
+   * @returns {string} The thread ID.
+   */
+  function createThread() {
     var url = 'https://api.openai.com/v1/threads';
-
     var options = {
       'method': 'post',
       'contentType': 'application/json',
@@ -886,67 +880,83 @@ const ChatGPTApp = (function () {
     };
 
     var response = UrlFetchApp.fetch(url, options);
+    return JSON.parse(response.getContentText()).id;
+  }
 
-    // add a message to the thread
-    let threadId = JSON.parse(response.getContentText()).id;
+  /**
+   * Uploads a file to OpenAI and returns the file ID.
+   * 
+   * @param {string} optionalAttachment - The optional attachment ID from Google Drive.
+   * @returns {string} The OpenAI file ID.
+   */
+  function uploadFileToOpenAI(optionalAttachment) {
+    var file = DriveApp.getFileById(optionalAttachment);
+    var mimeType = file.getMimeType();
+    let fileBlobUrl;
 
+    switch (mimeType) {
+      case "application/vnd.google-apps.spreadsheet":
+        fileBlobUrl = 'https://docs.google.com/spreadsheets/d/' + optionalAttachment + '/export?format=xlsx';
+        break;
+      case "application/vnd.google-apps.document":
+        fileBlobUrl = 'https://docs.google.com/document/d/' + optionalAttachment + '/export?format=docx';
+        break;
+      case "application/vnd.google-apps.presentation":
+        fileBlobUrl = 'https://docs.google.com/presentation/d/' + optionalAttachment + '/export/pptx';
+        break;
+    }
+
+    var token = ScriptApp.getOAuthToken();
+
+    // Fetch the file from Google Drive using the generated URL and OAuth token
+    var response = UrlFetchApp.fetch(fileBlobUrl, {
+      headers: {
+        'Authorization': 'Bearer ' + token
+      }
+    });
+
+    var fileBlob = response.getBlob();
+
+    const openAIFileEndpoint = 'https://api.openai.com/v1/files';
+
+    var formData = {
+      'file': fileBlob,
+      'purpose': 'assistants'
+    };
+
+    var uploadOptions = {
+      'method': 'post',
+      'headers': {
+        'Authorization': 'Bearer ' + openAIKey
+      },
+      'payload': formData,
+      'muteHttpExceptions': true
+    };
+
+    response = UrlFetchApp.fetch(openAIFileEndpoint, uploadOptions);
+    var uploadedFileResponse = JSON.parse(response.getContentText());
+    if (uploadedFileResponse.error) {
+      throw new Error('Error: ' + uploadedFileResponse.error.message);
+    }
+    return uploadedFileResponse.id;
+  }
+
+  /**
+   * Adds a message to the thread.
+   * 
+   * @param {string} threadId - The ID of the thread.
+   * @param {string} prompt - The prompt to send to the assistant.
+   * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
+   */
+  function addMessageToThread(threadId, prompt, optionalAttachment) {
     let messagePayload = {
       "role": "user",
       "content": prompt
     };
-    
-    if (optionnalAttachment) {
+
+    if (optionalAttachment) {
       try {
-        var file = DriveApp.getFileById(optionnalAttachment);
-        var mimeType = file.getMimeType();
-        let fileBlobUrl;
-
-        switch (mimeType) {
-          case "application/vnd.google-apps.spreadsheet":
-            fileBlobUrl = 'https://docs.google.com/spreadsheets/d/' + optionnalAttachment + '/export?format=xlsx';
-            break;
-          case "application/vnd.google-apps.document":
-            fileBlobUrl = 'https://docs.google.com/document/d/' + optionnalAttachment + '/export?format=docx';
-            break;
-          case "application/vnd.google-apps.presentation":
-            fileBlobUrl = 'https://docs.google.com/presentation/d/' + optionnalAttachment + '/export/pptx';
-            break;
-        }
-
-        var token = ScriptApp.getOAuthToken();
-
-        // Fetch the file from Google Drive using the generated URL and OAuth token
-        var response = UrlFetchApp.fetch(fileBlobUrl, {
-          headers: {
-            'Authorization': 'Bearer ' + token
-          }
-        });
-
-        var fileBlob = response.getBlob()
-
-        const openAIFileEndpoint = 'https://api.openai.com/v1/files';
-
-        var formData = {
-          'file': fileBlob,
-          'purpose': 'assistants'
-        };
-
-        var uploadOptions = {
-          'method': 'post',
-          'headers': {
-            'Authorization': 'Bearer ' + openAIKey
-          },
-          'payload': formData,
-          'muteHttpExceptions': true
-        };
-
-        response = UrlFetchApp.fetch(openAIFileEndpoint, uploadOptions);
-        var uploadedFileResponse = JSON.parse(response.getContentText());
-        if (uploadedFileResponse.error) {
-          throw new Error('Error: ' + uploadedFileResponse.error.message);
-        }
-        var openAiFileId = uploadedFileResponse.id;
-
+        var openAiFileId = uploadFileToOpenAI(optionalAttachment);
         messagePayload.attachments = [
           {
             "file_id": openAiFileId,
@@ -958,9 +968,8 @@ const ChatGPTApp = (function () {
       }
     }
 
-    url = `https://api.openai.com/v1/threads/${threadId}/messages`;
-
-    options = {
+    var url = `https://api.openai.com/v1/threads/${threadId}/messages`;
+    var options = {
       'method': 'post',
       'contentType': 'application/json',
       'headers': {
@@ -970,16 +979,22 @@ const ChatGPTApp = (function () {
       'payload': JSON.stringify(messagePayload)
     };
 
-    response = UrlFetchApp.fetch(url, options);
+    UrlFetchApp.fetch(url, options);
+  }
 
-    // run the thread with the assistant 
-    url = `https://api.openai.com/v1/threads/${threadId}/runs`;
-
-    let assistantPayload = {
+  /**
+   * Runs the assistant and returns the run ID.
+   * 
+   * @param {string} threadId - The ID of the thread.
+   * @param {string} assistantId - The ID of the OpenAI assistant to run.
+   * @returns {string} The run ID.
+   */
+  function runAssistant(threadId, assistantId) {
+    var url = `https://api.openai.com/v1/threads/${threadId}/runs`;
+    var assistantPayload = {
       "assistant_id": assistantId
     };
-
-    options = {
+    var options = {
       'method': 'post',
       'contentType': 'application/json',
       'headers': {
@@ -989,20 +1004,25 @@ const ChatGPTApp = (function () {
       'payload': JSON.stringify(assistantPayload)
     };
 
-    response = UrlFetchApp.fetch(url, options);
+    var response = UrlFetchApp.fetch(url, options);
+    return JSON.parse(response.getContentText()).id;
+  }
 
-    let runId = JSON.parse(response.getContentText()).id;
+  /**
+   * Monitors the run status until completion.
+   * 
+   * @param {string} threadId - The ID of the thread.
+   * @param {string} runId - The run ID.
+   */
+  function monitorRunStatus(threadId, runId) {
+    var url = `https://api.openai.com/v1/threads/${threadId}/runs/${runId}`;
+    var status = "queued";
+    const sleepTime = 30000; // 30 seconds
 
-    // Monitor the run status until completion
-    let status = "queued";
-
-    const sleepTime = 30000; // 5 seconds
-
-    while (status === "queued") { 
+    while (status === "queued") {
       Utilities.sleep(sleepTime);
-      url = `https://api.openai.com/v1/threads/${threadId}/runs/${runId}`;
 
-      let statusOptions = {
+      var statusOptions = {
         'method': 'get',
         'headers': {
           'Content-Type': 'application/json',
@@ -1011,20 +1031,27 @@ const ChatGPTApp = (function () {
         }
       };
 
-      response = UrlFetchApp.fetch(url, statusOptions);
+      var response = UrlFetchApp.fetch(url, statusOptions);
       let runStatus = JSON.parse(response.getContentText());
       status = runStatus.status;
     }
 
     if (status !== "completed") {
       Logger.log('Run did not complete in time.');
-      return;
+      throw new Error('Run did not complete in time.');
     }
+  }
 
-    // see the thread messages 
-    url = 'https://api.openai.com/v1/threads/' + threadId + '/messages';
-
-    let listingOptions = {
+  /**
+   * Retrieves the assistant's response and references.
+   * 
+   * @param {string} threadId - The ID of the thread.
+   * @param {string} assistantId - The ID of the OpenAI assistant.
+   * @returns {string} The assistant's response and references in JSON format.
+   */
+  function getAssistantResponse(threadId, assistantId) {
+    var url = 'https://api.openai.com/v1/threads/' + threadId + '/messages';
+    var options = {
       'method': 'get',
       'headers': {
         'Content-Type': 'application/json',
@@ -1034,7 +1061,7 @@ const ChatGPTApp = (function () {
     };
 
     try {
-      response = UrlFetchApp.fetch(url, listingOptions);
+      var response = UrlFetchApp.fetch(url, options);
       var json = response.getContentText();
       var data = JSON.parse(json).data[0].content[0].text;
 
@@ -1071,8 +1098,29 @@ const ChatGPTApp = (function () {
       Logger.log('Error retrieving assistant response: ' + e.message);
       return 'Execution failure of the documentation retrieval.';
     }
-
   }
+
+  /**
+   * Runs an OpenAI assistant with the provided prompt and optional attachment.
+   * 
+   * @param {string} assistantId - The ID of the OpenAI assistant to run.
+   * @param {string} prompt - The prompt to send to the assistant.
+   * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
+   * @returns {string} The assistant's response and references in JSON format.
+   */
+  function runOpenAIAssistant(assistantId, prompt, optionalAttachment) {
+    try {
+      var threadId = createThread();
+      addMessageToThread(threadId, prompt, optionalAttachment);
+      var runId = runAssistant(threadId, assistantId);
+      monitorRunStatus(threadId, runId);
+      return getAssistantResponse(threadId, assistantId);
+    } catch (e) {
+      Logger.log('Error in runOpenAIAssistant: ' + e.message);
+      return 'Execution failure.';
+    }
+  }
+
 
   function webSearch(q) {
     // https://programmablesearchengine.google.com/controlpanel/overview?cx=221c662683d054b63

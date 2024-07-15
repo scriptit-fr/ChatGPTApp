@@ -186,6 +186,10 @@ const ChatGPTApp = (function () {
       let vision = false;
       let onlyRetrieveSearchResults = false;
       let knowledgeLink;
+      let assistantIdentificator;
+      let vectorStore;
+      let attachmentIdentificator;
+      let assistantTools;
 
       let webSearchQueries = [];
       let webPagesOpened = [];
@@ -306,6 +310,34 @@ const ChatGPTApp = (function () {
         }
         return this;
       };
+
+      /**
+       * OPTIONAL
+       * 
+       * Enable a thread run with an OpenAI assistant.
+       * @param {string} assistantId - your assistant id
+       * @param {string} vectorStoreDescription - a small description of the available knowledge from this assistant
+       * @returns {Chat} - The current Chat instance.
+       */
+      this.retrieveKnowledgeFromAssistant = function (assistantId, vectorStoreDescription) {
+        assistantIdentificator = assistantId;
+        vectorStore = vectorStoreDescription;
+        return this;
+      }
+
+      /**
+       * OPTIONAL
+       * 
+       * Enable a thread run with an OpenAI assistant.
+       * @param {string} assistantId - your assistant id
+       * @param {string} attachmentId - the Drive ID of the document you want to attach
+       * @returns {Chat} - The current Chat instance.
+       */
+      this.analyzeDocumentWithAssistant = function (assistantId, attachmentId) {
+        assistantIdentificator = assistantId;
+        attachmentIdentificator = attachmentId;
+        return this;
+      }
 
       /**
        * Includes the content of a web page in the prompt sent to openAI
@@ -433,6 +465,46 @@ const ChatGPTApp = (function () {
                 function: { name: "urlFetch" }
               };
             }
+          }
+        }
+
+        if (assistantIdentificator) {
+          // This function is created only here to adapt the function description to the vector store content
+          let runOpenAIAssistantFunction = new FunctionObject()
+            .setName("runOpenAIAssistant")
+            .setDescription(`To retrieve information from : ${vectorStore}`)
+            .addParameter("assistantId", "string", "The ID of the assistant")
+            .addParameter("prompt", "string", "The question you want to ask the assistant")
+            .endWithResult(true);
+
+          if (attachmentIdentificator) {
+            runOpenAIAssistantFunction.setDescription("To analyze a file with code interpreter")
+            runOpenAIAssistantFunction.addParameter("attachmentId", "string", "the Id of the file attached");
+          }
+
+          if (numberOfAPICalls == 0) {
+
+            tools.push({
+              type: "function",
+              function: runOpenAIAssistantFunction
+            });
+
+            if (attachmentIdentificator) {
+              messages.push({
+                role: "system",
+                content: `You can use the assistant ${assistantIdentificator} to analyze this file: "${attachmentIdentificator}"`
+              });
+            } else {
+              messages.push({
+                role: "system",
+                content: `You can use the assistant ${assistantIdentificator} to retrieve information from : ${vectorStore}`
+              });
+            }
+
+            payload.tool_choice = {
+              type: "function",
+              function: { name: "runOpenAIAssistant" }
+            };
           }
         }
 
@@ -645,6 +717,10 @@ const ChatGPTApp = (function () {
           });
           messages.push({
             "role": "system",
+            "content": functionResponse
+          });
+          messages.push({
+            "role": "system",
             "content": "endWithResult"
           });
           return messages;
@@ -724,6 +800,13 @@ const ChatGPTApp = (function () {
         return getImageDescription(jsonArgs.imageUrl);
       }
     }
+    if (functionName == "runOpenAIAssistant") {
+      if (jsonArgs.attachmentId) {
+        return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt, jsonArgs.attachmentId);
+      } else {
+        return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt);
+      }
+    }
     // Parse JSON arguments
     var argsObj = jsonArgs;
     let argsArray = argsOrder.map(argName => argsObj[argName]);
@@ -790,6 +873,266 @@ const ChatGPTApp = (function () {
       }
     }
   }
+
+  /**
+   * Creates a new thread and returns the thread ID.
+   * 
+   * @returns {string} The thread ID.
+   */
+  function createThread() {
+    var url = 'https://api.openai.com/v1/threads';
+    var options = {
+      'method': 'post',
+      'contentType': 'application/json',
+      'headers': {
+        'Authorization': 'Bearer ' + openAIKey,
+        'OpenAI-Beta': 'assistants=v2'
+      },
+      'payload': '{}'
+    };
+
+    var response = UrlFetchApp.fetch(url, options);
+    return JSON.parse(response.getContentText()).id;
+  }
+
+  /**
+   * Uploads a file to OpenAI and returns the file ID.
+   * 
+   * @param {string} optionalAttachment - The optional attachment ID from Google Drive.
+   * @returns {string} The OpenAI file ID.
+   */
+  function uploadFileToOpenAI(optionalAttachment) {
+    var file = DriveApp.getFileById(optionalAttachment);
+    var mimeType = file.getMimeType();
+    let fileBlobUrl;
+
+    switch (mimeType) {
+      case "application/vnd.google-apps.spreadsheet":
+        fileBlobUrl = 'https://docs.google.com/spreadsheets/d/' + optionalAttachment + '/export?format=xlsx';
+        break;
+      case "application/vnd.google-apps.document":
+        fileBlobUrl = 'https://docs.google.com/document/d/' + optionalAttachment + '/export?format=docx';
+        break;
+      case "application/vnd.google-apps.presentation":
+        fileBlobUrl = 'https://docs.google.com/presentation/d/' + optionalAttachment + '/export/pptx';
+        break;
+    }
+
+    var token = ScriptApp.getOAuthToken();
+
+    // Fetch the file from Google Drive using the generated URL and OAuth token
+    var response = UrlFetchApp.fetch(fileBlobUrl, {
+      headers: {
+        'Authorization': 'Bearer ' + token
+      }
+    });
+
+    var fileBlob = response.getBlob();
+
+    const openAIFileEndpoint = 'https://api.openai.com/v1/files';
+
+    var formData = {
+      'file': fileBlob,
+      'purpose': 'assistants'
+    };
+
+    var uploadOptions = {
+      'method': 'post',
+      'headers': {
+        'Authorization': 'Bearer ' + openAIKey
+      },
+      'payload': formData,
+      'muteHttpExceptions': true
+    };
+
+    response = UrlFetchApp.fetch(openAIFileEndpoint, uploadOptions);
+    var uploadedFileResponse = JSON.parse(response.getContentText());
+    if (uploadedFileResponse.error) {
+      throw new Error('Error: ' + uploadedFileResponse.error.message);
+    }
+    return uploadedFileResponse.id;
+  }
+
+  /**
+   * Adds a message to the thread.
+   * 
+   * @param {string} threadId - The ID of the thread.
+   * @param {string} prompt - The prompt to send to the assistant.
+   * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
+   */
+  function addMessageToThread(threadId, prompt, optionalAttachment) {
+    let messagePayload = {
+      "role": "user",
+      "content": prompt
+    };
+
+    if (optionalAttachment) {
+      try {
+        var openAiFileId = uploadFileToOpenAI(optionalAttachment);
+        messagePayload.attachments = [
+          {
+            "file_id": openAiFileId,
+            "tools": [{ "type": "code_interpreter" }]
+          }
+        ];
+      } catch (e) {
+        Logger.log('Error retrieving the file : ' + e.message);
+      }
+    }
+
+    var url = `https://api.openai.com/v1/threads/${threadId}/messages`;
+    var options = {
+      'method': 'post',
+      'contentType': 'application/json',
+      'headers': {
+        'Authorization': 'Bearer ' + openAIKey,
+        'OpenAI-Beta': 'assistants=v2'
+      },
+      'payload': JSON.stringify(messagePayload)
+    };
+
+    UrlFetchApp.fetch(url, options);
+  }
+
+  /**
+   * Runs the assistant and returns the run ID.
+   * 
+   * @param {string} threadId - The ID of the thread.
+   * @param {string} assistantId - The ID of the OpenAI assistant to run.
+   * @returns {string} The run ID.
+   */
+  function runAssistant(threadId, assistantId) {
+    var url = `https://api.openai.com/v1/threads/${threadId}/runs`;
+    var assistantPayload = {
+      "assistant_id": assistantId
+    };
+    var options = {
+      'method': 'post',
+      'contentType': 'application/json',
+      'headers': {
+        'Authorization': 'Bearer ' + openAIKey,
+        'OpenAI-Beta': 'assistants=v2'
+      },
+      'payload': JSON.stringify(assistantPayload)
+    };
+
+    var response = UrlFetchApp.fetch(url, options);
+    return JSON.parse(response.getContentText()).id;
+  }
+
+  /**
+   * Monitors the run status until completion.
+   * 
+   * @param {string} threadId - The ID of the thread.
+   * @param {string} runId - The run ID.
+   */
+  function monitorRunStatus(threadId, runId) {
+    var url = `https://api.openai.com/v1/threads/${threadId}/runs/${runId}`;
+    var status = "queued";
+    const sleepTime = 30000; // 30 seconds
+
+    while (status === "queued") {
+      Utilities.sleep(sleepTime);
+
+      var statusOptions = {
+        'method': 'get',
+        'headers': {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + openAIKey,
+          'OpenAI-Beta': 'assistants=v2'
+        }
+      };
+
+      var response = UrlFetchApp.fetch(url, statusOptions);
+      let runStatus = JSON.parse(response.getContentText());
+      status = runStatus.status;
+    }
+
+    if (status !== "completed") {
+      Logger.log('Run did not complete in time.');
+      throw new Error('Run did not complete in time.');
+    }
+  }
+
+  /**
+   * Retrieves the assistant's response and references.
+   * 
+   * @param {string} threadId - The ID of the thread.
+   * @param {string} assistantId - The ID of the OpenAI assistant.
+   * @returns {string} The assistant's response and references in JSON format.
+   */
+  function getAssistantResponse(threadId, assistantId) {
+    var url = 'https://api.openai.com/v1/threads/' + threadId + '/messages';
+    var options = {
+      'method': 'get',
+      'headers': {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + openAIKey,
+        'OpenAI-Beta': 'assistants=v2'
+      }
+    };
+
+    try {
+      var response = UrlFetchApp.fetch(url, options);
+      var json = response.getContentText();
+      var data = JSON.parse(json).data[0].content[0].text;
+
+      let references = [];
+      JSON.parse(JSON.stringify(data.annotations)).forEach(element => {
+        const fileId = element.file_citation.file_id;
+        var fileEndpoint = 'https://api.openai.com/v1/files/' + fileId;
+
+        var fileOptions = {
+          'method': 'get',
+          'headers': {
+            'Authorization': 'Bearer ' + openAIKey
+          }
+        };
+
+        var response = UrlFetchApp.fetch(fileEndpoint, fileOptions);
+        var json = JSON.parse(response.getContentText());
+
+        references.push(json.filename);
+      });
+
+      Logger.log({
+        message: `Got response from Assistant : ${assistantId}`,
+        response: JSON.stringify(data.value),
+        references: references
+      });
+
+      return JSON.stringify({
+        response: JSON.stringify(data.value),
+        references: references
+      });
+
+    } catch (e) {
+      Logger.log('Error retrieving assistant response: ' + e.message);
+      return 'Execution failure of the documentation retrieval.';
+    }
+  }
+
+  /**
+   * Runs an OpenAI assistant with the provided prompt and optional attachment.
+   * 
+   * @param {string} assistantId - The ID of the OpenAI assistant to run.
+   * @param {string} prompt - The prompt to send to the assistant.
+   * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
+   * @returns {string} The assistant's response and references in JSON format.
+   */
+  function runOpenAIAssistant(assistantId, prompt, optionalAttachment) {
+    try {
+      var threadId = createThread();
+      addMessageToThread(threadId, prompt, optionalAttachment);
+      var runId = runAssistant(threadId, assistantId);
+      monitorRunStatus(threadId, runId);
+      return getAssistantResponse(threadId, assistantId);
+    } catch (e) {
+      Logger.log('Error in runOpenAIAssistant: ' + e.message);
+      return 'Execution failure.';
+    }
+  }
+
 
   function webSearch(q) {
     // https://programmablesearchengine.google.com/controlpanel/overview?cx=221c662683d054b63

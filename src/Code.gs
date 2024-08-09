@@ -190,6 +190,7 @@ const ChatGPTApp = (function () {
       let vectorStore;
       let attachmentIdentificator;
       let assistantTools;
+      let isSpreadsheet;
 
       let webSearchQueries = [];
       let webPagesOpened = [];
@@ -331,11 +332,13 @@ const ChatGPTApp = (function () {
        * Enable a thread run with an OpenAI assistant.
        * @param {string} assistantId - your assistant id
        * @param {string} attachmentId - the Drive ID of the document you want to attach
+       * @param {boolean} [spreadsheet] - if attachment is spreadsheet
        * @returns {Chat} - The current Chat instance.
        */
-      this.analyzeDocumentWithAssistant = function (assistantId, attachmentId) {
+      this.analyzeDocumentWithAssistant = function (assistantId, attachmentId, spreadsheet=false) {
         assistantIdentificator = assistantId;
         attachmentIdentificator = attachmentId;
+        isSpreadsheet=spreadsheet
         return this;
       }
 
@@ -479,7 +482,8 @@ const ChatGPTApp = (function () {
 
           if (attachmentIdentificator) {
             runOpenAIAssistantFunction.setDescription("To analyze a file with code interpreter")
-            runOpenAIAssistantFunction.addParameter("attachmentId", "string", "the Id of the file attached");
+            runOpenAIAssistantFunction.addParameter("attachmentId", "string", "the Id of the file attached")
+            runOpenAIAssistantFunction.addParameter("isSpreadsheet", "boolean", "if the file is a spreadsheet")
           }
 
           if (numberOfAPICalls == 0) {
@@ -490,10 +494,17 @@ const ChatGPTApp = (function () {
             });
 
             if (attachmentIdentificator) {
-              messages.push({
-                role: "system",
-                content: `You can use the assistant ${assistantIdentificator} to analyze this file: "${attachmentIdentificator}"`
-              });
+              if (isSpreadsheet) {
+                messages.push({
+                  role: "system",
+                  content: `You can use the assistant ${assistantIdentificator} to analyze this file: "${attachmentIdentificator}, and the file is a spreadsheet"
+                });
+              } else {
+                messages.push({
+                  role: "system",
+                  content: `You can use the assistant ${assistantIdentificator} to analyze this file: "${attachmentIdentificator}, and the file is not a spreadsheet"
+                });
+              }
             } else {
               messages.push({
                 role: "system",
@@ -802,7 +813,7 @@ const ChatGPTApp = (function () {
     }
     if (functionName == "runOpenAIAssistant") {
       if (jsonArgs.attachmentId) {
-        return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt, jsonArgs.attachmentId);
+        return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt, jsonArgs.attachmentId, jsonArgs.isSpreadsheet);
       } else {
         return runOpenAIAssistant(jsonArgs.assistantId, jsonArgs.prompt);
       }
@@ -899,23 +910,28 @@ const ChatGPTApp = (function () {
    * Uploads a file to OpenAI and returns the file ID.
    * 
    * @param {string} optionalAttachment - The optional attachment ID from Google Drive.
+   * @param {boolean} isSpreadsheet - if the file is a spreadsheet
    * @returns {string} The OpenAI file ID.
    */
-  function uploadFileToOpenAI(optionalAttachment) {
-    var file = DriveApp.getFileById(optionalAttachment);
-    var mimeType = file.getMimeType();
+  function uploadFileToOpenAI(optionalAttachment, isSpreadsheet) {
     let fileBlobUrl;
+    if (isSpreadsheet) {
+      fileBlobUrl = 'https://docs.google.com/spreadsheets/d/' + optionalAttachment + '/export?format=xlsx';
+    } else {
+      var file = DriveApp.getFileById(optionalAttachment);
+      var mimeType = file.getMimeType();
 
-    switch (mimeType) {
-      case "application/vnd.google-apps.spreadsheet":
-        fileBlobUrl = 'https://docs.google.com/spreadsheets/d/' + optionalAttachment + '/export?format=xlsx';
-        break;
-      case "application/vnd.google-apps.document":
-        fileBlobUrl = 'https://docs.google.com/document/d/' + optionalAttachment + '/export?format=docx';
-        break;
-      case "application/vnd.google-apps.presentation":
-        fileBlobUrl = 'https://docs.google.com/presentation/d/' + optionalAttachment + '/export/pptx';
-        break;
+      switch (mimeType) {
+        case "application/vnd.google-apps.spreadsheet":
+          fileBlobUrl = 'https://docs.google.com/spreadsheets/d/' + optionalAttachment + '/export?format=xlsx';
+          break;
+        case "application/vnd.google-apps.document":
+          fileBlobUrl = 'https://docs.google.com/document/d/' + optionalAttachment + '/export?format=docx';
+          break;
+        case "application/vnd.google-apps.presentation":
+          fileBlobUrl = 'https://docs.google.com/presentation/d/' + optionalAttachment + '/export/pptx';
+          break;
+      }
     }
 
     var token = ScriptApp.getOAuthToken();
@@ -959,8 +975,9 @@ const ChatGPTApp = (function () {
    * @param {string} threadId - The ID of the thread.
    * @param {string} prompt - The prompt to send to the assistant.
    * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
+   * @param {boolean} [isSpreadsheet] - if the file is a spreadsheet
    */
-  function addMessageToThread(threadId, prompt, optionalAttachment) {
+  function addMessageToThread(threadId, prompt, optionalAttachment, isSpreadsheet) {
     let messagePayload = {
       "role": "user",
       "content": prompt
@@ -968,7 +985,7 @@ const ChatGPTApp = (function () {
 
     if (optionalAttachment) {
       try {
-        var openAiFileId = uploadFileToOpenAI(optionalAttachment);
+        var openAiFileId = uploadFileToOpenAI(optionalAttachment, isSpreadsheet);
         messagePayload.attachments = [
           {
             "file_id": openAiFileId,
@@ -1118,12 +1135,13 @@ const ChatGPTApp = (function () {
    * @param {string} assistantId - The ID of the OpenAI assistant to run.
    * @param {string} prompt - The prompt to send to the assistant.
    * @param {string} [optionalAttachment] - The optional attachment ID from Google Drive.
+   * @param {boolean} [isSpreadsheet] - if the file is a spreadsheet
    * @returns {string} The assistant's response and references in JSON format.
    */
-  function runOpenAIAssistant(assistantId, prompt, optionalAttachment) {
+  function runOpenAIAssistant(assistantId, prompt, optionalAttachment, isSpreadsheet) {
     try {
       var threadId = createThread();
-      addMessageToThread(threadId, prompt, optionalAttachment);
+      addMessageToThread(threadId, prompt, optionalAttachment, isSpreadsheet);
       var runId = runAssistant(threadId, assistantId);
       monitorRunStatus(threadId, runId);
       return getAssistantResponse(threadId, assistantId);

@@ -902,12 +902,12 @@ const ChatGPTApp = (function () {
    * @returns {string} The OpenAI file ID.
    */
   function uploadFileToOpenAI(optionalAttachment, isSpreadsheet) {
+    let fileBlobUrl;
     if (isSpreadsheet) {
       fileBlobUrl = 'https://docs.google.com/spreadsheets/d/' + optionalAttachment + '/export?format=xlsx';
     } else {
       var file = DriveApp.getFileById(optionalAttachment);
       var mimeType = file.getMimeType();
-      let fileBlobUrl;
 
       switch (mimeType) {
         case "application/vnd.google-apps.spreadsheet":

@@ -1,3 +1,7 @@
+**⚠️ Important Notice:**  
+This library, **ChatGPTApp**, is now **deprecated** and has been replaced by **GenAIApp**. For the latest features, improvements, and ongoing support, please switch to GenAIApp, available at [https://github.com/scriptit-fr/GenAIApp](https://github.com/scriptit-fr/GenAIApp).  
+
+
 # ChatGPTApp Google Apps Script Library Documentation
 
 The ChatGPTApp is a library that facilitates the integration of OpenAI's GPT into your Google Apps Script projects. It allows for structured conversation, function calling and web browsing capabilities.
